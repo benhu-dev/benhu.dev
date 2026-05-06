@@ -37,25 +37,21 @@ const PALETTE: Record<string, string> = {
 export function PixelAvatar({ className }: PixelAvatarProps) {
   return (
     <div
-      className={cn(
-        'border-border-default bg-bg-primary aspect-square w-full overflow-hidden border',
-        className,
-      )}
+      className={cn('pixelated grid h-[92%] w-[92%]', className)}
+      style={{ gridTemplateColumns: 'repeat(16, 1fr)' }}
       aria-label="Pixel-art avatar of Ben Hu"
       role="img"
     >
-      <div className="grid h-full w-full" style={{ gridTemplateColumns: 'repeat(16, 1fr)' }}>
-        {PIXEL_GRID.flatMap((row, rIdx) =>
-          row
-            .split('')
-            .map((cell, cIdx) => (
-              <div
-                key={`${rIdx}-${cIdx}`}
-                style={{ backgroundColor: PALETTE[cell] ?? 'transparent' }}
-              />
-            )),
-        )}
-      </div>
+      {PIXEL_GRID.flatMap((row, rIdx) =>
+        row
+          .split('')
+          .map((cell, cIdx) => (
+            <div
+              key={`${rIdx}-${cIdx}`}
+              style={{ backgroundColor: PALETTE[cell] ?? 'transparent' }}
+            />
+          )),
+      )}
     </div>
   );
 }

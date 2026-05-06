@@ -1,6 +1,5 @@
 import { Footer } from '@/components/layout/footer';
 import { Nav } from '@/components/layout/nav';
-import { StatusBar } from '@/components/layout/status-bar';
 import { About } from '@/components/sections/about';
 import { Contact } from '@/components/sections/contact';
 import { Experience } from '@/components/sections/experience';
@@ -19,7 +18,6 @@ export default function Home() {
         <Contact />
       </main>
       <Footer />
-      <StatusBar />
     </>
   );
 }

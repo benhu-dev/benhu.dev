@@ -12,18 +12,29 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    'bg-syntax-string text-bg-primary hover:bg-syntax-string/90 border border-transparent font-semibold',
-  secondary:
-    'bg-transparent border border-border-default text-text-primary hover:border-syntax-function hover:text-syntax-function',
-  ghost: 'bg-transparent border border-transparent text-text-secondary hover:text-syntax-function',
-  danger: 'bg-syntax-error text-bg-primary hover:bg-syntax-error/90 border border-transparent',
+  primary: [
+    'border border-syntax-string bg-syntax-string text-bg-primary font-semibold',
+    'hover:bg-transparent hover:text-syntax-string',
+    // Reference pattern: inset shadow simulates a 2px border (no layout shift)
+    // + a soft outer glow.
+    'hover:shadow-[inset_0_0_0_2px_var(--syntax-string),0_0_24px_-8px_var(--syntax-string)]',
+  ].join(' '),
+  secondary: [
+    'border border-border-default bg-transparent text-text-primary',
+    'hover:border-syntax-function hover:text-syntax-function',
+    // Inset shadow simulates a 2px border without layout shift; outer shadow
+    // is a soft blue glow.
+    'hover:shadow-[inset_0_0_0_1px_var(--syntax-function),0_0_20px_-8px_var(--syntax-function)]',
+  ].join(' '),
+  ghost: 'border border-transparent bg-transparent text-text-secondary hover:text-syntax-function',
+  danger:
+    'border border-syntax-error bg-syntax-error text-bg-primary font-semibold hover:bg-transparent hover:text-syntax-error',
 };
 
 const SIZES: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-5 py-3 text-base',
+  sm: 'px-4 py-1.5 text-sm',
+  md: 'px-5 py-2.5 text-sm',
+  lg: 'px-6 py-3 text-base',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -35,7 +46,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type ?? 'button'}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-sm font-mono transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex cursor-pointer items-center justify-center gap-2 rounded font-mono transition-all duration-200',
+        'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none',
         VARIANTS[variant],
         SIZES[size],
         className,

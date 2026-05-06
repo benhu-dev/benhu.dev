@@ -7,16 +7,18 @@ import { cn } from '@/lib/utils';
 
 interface TypewriterProps {
   text: string;
-  speed?: number;
   delay?: number;
+  minSpeed?: number;
+  maxSpeed?: number;
   className?: string;
   cursorClassName?: string;
 }
 
 export function Typewriter({
   text,
-  speed = 55,
-  delay = 250,
+  delay = 800,
+  minSpeed = 55,
+  maxSpeed = 95,
   className,
   cursorClassName,
 }: TypewriterProps) {
@@ -30,26 +32,35 @@ export function Typewriter({
     }
     setShown('');
     let i = 0;
-    let interval: ReturnType<typeof setInterval> | undefined;
-    const start = setTimeout(() => {
-      interval = setInterval(() => {
-        i += 1;
-        setShown(text.slice(0, i));
-        if (i >= text.length && interval) {
-          clearInterval(interval);
-        }
-      }, speed);
-    }, delay);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = () => {
+      i += 1;
+      setShown(text.slice(0, i));
+      if (i < text.length) {
+        const next = minSpeed + Math.random() * (maxSpeed - minSpeed);
+        timeout = setTimeout(tick, next);
+      }
+    };
+
+    const start = setTimeout(tick, delay);
     return () => {
       clearTimeout(start);
-      if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
     };
-  }, [text, speed, delay, reduced]);
+  }, [text, delay, minSpeed, maxSpeed, reduced]);
 
   return (
     <span className={className}>
       {shown}
-      <span className={cn('cursor-blink ml-0.5 inline-block', cursorClassName)}>▍</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'bg-syntax-function blink-cursor ml-[2px] inline-block align-[-0.12em]',
+          cursorClassName,
+        )}
+        style={{ width: '0.55em', height: '1em' }}
+      />
     </span>
   );
 }

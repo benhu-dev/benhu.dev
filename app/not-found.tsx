@@ -1,7 +1,5 @@
 import Link from 'next/link';
 
-import { StatusBar } from '@/components/layout/status-bar';
-
 const PIXEL_404 = [
   '. X X X . X X X . X X X .',
   'X . . X . X . X . X . . X',
@@ -45,8 +43,6 @@ export default function NotFound() {
       >
         &gt; return home()
       </Link>
-
-      <StatusBar />
     </div>
   );
 }

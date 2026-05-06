@@ -6,7 +6,7 @@ export const personal: Personal = {
   tagline: 'building things end-to-end',
   description:
     '[REPLACE: 3-4 line description, e.g., I design and ship product end-to-end — from the database schema up to the last pixel of the UI. I care about systems that hold up under real load and interfaces that respect the people using them.]',
-  status: 'Open to work — Senior Full-Stack Engineer roles',
+  status: 'Open to work — remote-friendly',
   location: 'Taipei · UTC+8 · remote-friendly',
 };
 
@@ -25,71 +25,98 @@ export const skills: Skills = {
   infraAndTools: ['AWS', 'Docker', 'Terraform', 'GitHub Actions', 'Vercel'],
 };
 
+// Stack-tag colour tokens. Map to the project's Tailwind theme variables so
+// switching the palette in one place updates every project tag.
+const BLUE = 'var(--syntax-function)';
+const PURPLE = 'var(--syntax-keyword)';
+const ORANGE = 'var(--syntax-number)';
+
 export const projects: Project[] = [
   {
-    id: 'project-1',
-    title: '[REPLACE: project name]',
-    tagline: '[REPLACE: one-line description of what it does and why it matters]',
-    stack: ['Next.js', 'TypeScript', 'PostgreSQL'],
+    id: 'commerce',
+    title: 'orbit/commerce',
+    tagline: 'Headless storefront platform with sub-100ms TTFB',
     stats: [
-      { icon: '📊', text: '600+ daily active rooms' },
-      { icon: '⚡', text: '<30ms cursor latency' },
+      { icon: '🏬', label: '1.2k+ stores' },
+      { icon: '💰', label: '$4.8M GMV processed' },
     ],
-    image: '/images/projects/project-1.svg',
-    liveUrl: 'https://example.com',
-    codeUrl: 'https://github.com/benhu-dev/project-1',
+    stack: [
+      { name: 'Next.js', color: BLUE },
+      { name: 'Node.js', color: PURPLE },
+      { name: 'PostgreSQL', color: PURPLE },
+      { name: 'Redis', color: PURPLE },
+      { name: 'AWS', color: ORANGE },
+    ],
+    palette: ['#0d2840', '#1a3a5c', '#7aa2f7'],
+    type: 'dashboard',
   },
   {
-    id: 'project-2',
-    title: '[REPLACE: project name]',
-    tagline: '[REPLACE: one-line description]',
-    stack: ['React Native', 'Node.js', 'Redis'],
+    id: 'lattice',
+    title: 'lattice',
+    tagline: 'Realtime collaborative whiteboard for distributed teams',
     stats: [
-      { icon: '👥', text: '10k+ users' },
-      { icon: '⭐', text: '4.7 App Store rating' },
+      { icon: '📊', label: '600+ daily active rooms' },
+      { icon: '⚡', label: '<30ms cursor latency' },
     ],
-    image: '/images/projects/project-2.svg',
-    liveUrl: 'https://example.com',
-    codeUrl: 'https://github.com/benhu-dev/project-2',
+    stack: [
+      { name: 'React', color: BLUE },
+      { name: 'TypeScript', color: BLUE },
+      { name: 'Yjs', color: PURPLE },
+      { name: 'WebRTC', color: PURPLE },
+    ],
+    palette: ['#1f1530', '#2d2148', '#bb9af7'],
+    type: 'editor',
   },
   {
-    id: 'project-3',
-    title: '[REPLACE: project name]',
-    tagline: '[REPLACE: one-line description]',
-    stack: ['Go', 'Kubernetes', 'gRPC'],
+    id: 'sift',
+    title: 'sift.dev',
+    tagline: 'CLI + dashboard for log search across heterogeneous services',
     stats: [
-      { icon: '🚀', text: '99.99% uptime' },
-      { icon: '📈', text: '10x throughput' },
+      { icon: '🟢', label: '99.9% uptime' },
+      { icon: '📦', label: '18B events indexed' },
     ],
-    image: '/images/projects/project-3.svg',
-    liveUrl: 'https://example.com',
-    codeUrl: 'https://github.com/benhu-dev/project-3',
+    stack: [
+      { name: 'Go', color: BLUE },
+      { name: 'ClickHouse', color: PURPLE },
+      { name: 'gRPC', color: PURPLE },
+      { name: 'Terraform', color: ORANGE },
+    ],
+    palette: ['#102a22', '#194036', '#9ece6a'],
+    type: 'data',
   },
   {
-    id: 'project-4',
-    title: '[REPLACE: project name]',
-    tagline: '[REPLACE: one-line description]',
-    stack: ['Next.js', 'tRPC', 'Prisma'],
+    id: 'pace',
+    title: 'pace',
+    tagline: 'iOS-first habit tracker with offline-first CRDT sync',
     stats: [
-      { icon: '💸', text: '$120k ARR in 6 months' },
-      { icon: '🌎', text: '40+ countries' },
+      { icon: '⬇️', label: '24k downloads' },
+      { icon: '⭐', label: '4.8 App Store rating' },
     ],
-    image: '/images/projects/project-4.svg',
-    liveUrl: 'https://example.com',
-    codeUrl: 'https://github.com/benhu-dev/project-4',
+    stack: [
+      { name: 'React Native', color: BLUE },
+      { name: 'TypeScript', color: BLUE },
+      { name: 'SQLite', color: PURPLE },
+      { name: 'Swift', color: ORANGE },
+    ],
+    palette: ['#3a1f1a', '#522d28', '#ff9e64'],
+    type: 'mobile',
   },
   {
-    id: 'project-5',
-    title: '[REPLACE: project name]',
-    tagline: '[REPLACE: one-line description]',
-    stack: ['Rust', 'WebAssembly', 'WebGL'],
+    id: 'kindle-club',
+    title: 'kindle.club',
+    tagline: 'A book-club companion that turns highlights into discussion prompts',
     stats: [
-      { icon: '🎮', text: '60fps on mid-range hardware' },
-      { icon: '📦', text: '<200kb bundle' },
+      { icon: '🧪', label: 'Side project' },
+      { icon: '🚀', label: '3k+ signups in 6 weeks' },
     ],
-    image: '/images/projects/project-5.svg',
-    liveUrl: 'https://example.com',
-    codeUrl: 'https://github.com/benhu-dev/project-5',
+    stack: [
+      { name: 'Astro', color: BLUE },
+      { name: 'SvelteKit', color: BLUE },
+      { name: 'SQLite', color: PURPLE },
+      { name: 'OpenAI', color: ORANGE },
+    ],
+    palette: ['#3b1d2a', '#552a3d', '#f7768e'],
+    type: 'marketing',
   },
 ];
 

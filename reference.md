@@ -1,276 +1,923 @@
-Hero 的網格球體效果需要完全重做。我有一份參考實作(reference implementation),
-是我在 Claude Design prototype 裡確認過視覺正確的版本。
+/* global React */
+const { useState: useStateP, useEffect: useEffectP, useRef: useRefP } = React;
 
-請使用這份參考程式碼的「演算法與參數」,但**用我們專案的架構與慣例重寫**:
+// Generate a stylized SVG "screenshot" placeholder for each project
+function ProjectScreenshot({ palette, label, type }) {
+  // type: 'dashboard' | 'editor' | 'marketing' | 'mobile' | 'data'
+  const W = 1440, H = 900;
+  const [c1, c2, c3] = palette;
 
----
-
-## 改寫要求(非常重要,逐項遵守)
-
-### 必須改寫的部分(技術棧轉換)
-
-1. **使用 React 19 + TypeScript**:加上完整型別,不要任何 any
-2. **使用 hooks**:useRef、useEffect、useState — 不要用 React.createElement
-3. **使用 Tailwind 樣式**:把 inline style 轉成 Tailwind classes
-   - 顏色用 Tailwind theme(我們已定義 tokyo night 色票)
-   - 不要寫 `style={{ position: 'absolute' }}`,寫 `className="absolute"`
-   - 唯一例外:Canvas 動態尺寸、需要程式控制的 style 才用 inline
-4. **使用 'use client' 指令**(因為用到 Canvas + useEffect)
-5. **檔案放在 components/effects/grid-sphere.tsx**(沿用既有架構)
-6. **匯出方式**:`export function GridSphere()`,在 hero.tsx 中 import 使用
-7. **遵守專案 lint 規則**:雙引號、分號、import 排序
-
-### 必須保留的部分(演算法核心,不要動)
-
-以下參數與邏輯**完全照抄**,不要自己改數值:
-
-- `SPACING = 28`(網格間距)
-- `RADIUS = 110`(影響半徑)
-- `LIFT_MAX = 90`(最大凸起高度)
-- `FOCAL = 700`(透視焦距)
-- `FAR_FADE = 150`(遠距裁切)
-- `sigma = 50`(高斯衰減)
-- 透視投影公式:`persp = FOCAL / (FOCAL - lift)`
-- 雙向連線:每個點連水平與垂直鄰居
-- `act` 漸變(靜止 700ms 後降到 0.22)
-- 紫色點規則:`(k % 11 === 0) && intensity > 0.65`,顏色 `187,154,247`
-- 藍色點顏色:`122,162,247`
-- 線條色彩混合公式(從 `65,72,104` 漸變到 `122,162,247`)
-- 線條 alpha:`0.12 + intensity * 0.32 * act`
-- 點 peakAlpha:藍 0.66 / 紫 0.5
-- 呼吸抖動:`sin(t * fr + ph) * 0.9`,fr 在 0.5-1.1 隨機,ph 在 0-2π 隨機
-- DPR 上限 2(Math.min(window.devicePixelRatio || 1, 2))
-- ResizeObserver 對 wrap 元素監聽,不是 window
-- IntersectionObserver 暫停離畫面外的渲染
-
-### 必須做的處理(專案規範)
-
-- **無障礙**:`aria-hidden="true"`、`prefers-reduced-motion` 時不啟動 canvas,只顯示靜態網格
-- **行動裝置**:`pointer: coarse` 媒體查詢時不啟動 canvas
-- **效能**:離開 viewport 時暫停 RAF
-- **清理**:useEffect return 時清掉所有 listener、RAF、observer
-- **背景靜態網格**:用 Tailwind 的 inline style 寫一個底層 div(因為 background-image 用 gradient 寫法 Tailwind 較難,可保留 inline)
-  - 線條色:`rgba(86,95,137,0.4)`
-  - 間距:28px(對應 SPACING)
-  - 整體 opacity:0.18
-
-### 整合到 Hero 的方式
-
-修改 components/sections/hero.tsx:
-- 在 hero section 最底層放 `<GridSphere />`
-- GridSphere 用 `absolute inset-0` 鋪滿
-- 確保 hero section 是 `relative`
-- Hero 內容層加 `relative z-10` 確保在 GridSphere 之上
-- 內容層加 `pointer-events-none`,但 CTA 按鈕等可互動元素加 `pointer-events-auto`
-  覆蓋回來
-- 文字保留 text-shadow 保護(已有)
-
----
-
-## 參考實作(Claude Design 版本,演算法與參數的真相來源)
-
-```javascript
-function HeroGrid() {
-  const wrapRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    const canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-
-    const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const mqCoarse = window.matchMedia('(pointer: coarse)');
-    if (mqReduce.matches || mqCoarse.matches) return;
-
-    const ctx = canvas.getContext('2d');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let W = 0, H = 0;
-
-    const SPACING = 28;
-    const RADIUS = 110;
-    const LIFT_MAX = 90;
-    const FOCAL = 700;
-    const FAR_FADE = 150;
-
-    let cols = 0, rows = 0;
-    let pts = [];
-
-    const buildGrid = () => {
-      cols = Math.ceil(W / SPACING) + 4;
-      rows = Math.ceil(H / SPACING) + 4;
-      pts = new Array(cols * rows);
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          pts[j * cols + i] = {
-            x: (i - 1) * SPACING,
-            y: (j - 1) * SPACING,
-            ph: Math.random() * Math.PI * 2,
-            fr: 0.5 + Math.random() * 0.6,
-          };
-        }
-      }
-    };
-
-    const resize = () => {
-      const r = wrap.getBoundingClientRect();
-      W = r.width; H = r.height;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
-      canvas.style.width = W + 'px';
-      canvas.style.height = H + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      buildGrid();
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    let mx = -9999, my = -9999, lastSeen = 0;
-    let cx = W * 0.32, cy = H * 0.55;
-    let visible = true;
-
-    const onMove = (e) => {
-      const r = wrap.getBoundingClientRect();
-      mx = e.clientX - r.left;
-      my = e.clientY - r.top;
-      lastSeen = performance.now();
-    };
-    const onLeave = () => { mx = -9999; my = -9999; };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseleave', onLeave);
-
-    const io = new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { threshold: 0 });
-    io.observe(wrap);
-
-    const state = { act: 0.25 };
-    let raf = 0;
-    const t0 = performance.now();
-
-    function drawSeg(a, b, act) {
-      const intensity = Math.max(a.intensity, b.intensity);
-      const blueMix = intensity;
-      const r = Math.round(65 + (122 - 65) * blueMix);
-      const g = Math.round(72 + (162 - 72) * blueMix);
-      const b2 = Math.round(104 + (247 - 104) * blueMix);
-      const alpha = 0.12 + intensity * 0.32 * act;
-      ctx.strokeStyle = `rgba(${r},${g},${b2},${alpha})`;
-      ctx.lineWidth = 0.5 + intensity * 0.9;
-      ctx.beginPath();
-      ctx.moveTo(a.sx, a.sy);
-      ctx.lineTo(b.sx, b.sy);
-      ctx.stroke();
+  const renderInner = () => {
+    if (type === 'dashboard') {
+      return (
+        <g>
+          {/* sidebar */}
+          <rect x="0" y="0" width="240" height={H} fill={c1} opacity="0.95"/>
+          <rect x="24" y="36" width="120" height="14" rx="3" fill={c3} opacity="0.9"/>
+          {[0,1,2,3,4,5].map(i => (
+            <g key={i}>
+              <rect x="24" y={100 + i*52} width="16" height="16" rx="3" fill={c3} opacity={i===1?1:0.4}/>
+              <rect x="50" y={104 + i*52} width={120 - i*8} height="8" rx="2" fill="#fff" opacity={i===1?0.9:0.35}/>
+            </g>
+          ))}
+          {/* main */}
+          <rect x="240" y="0" width={W-240} height="72" fill={c1} opacity="0.6"/>
+          <rect x="280" y="28" width="180" height="16" rx="3" fill="#fff" opacity="0.7"/>
+          {/* big stat cards */}
+          {[0,1,2].map(i => (
+            <g key={i}>
+              <rect x={280 + i*340} y="120" width="300" height="160" rx="10" fill={c2} opacity="0.85"/>
+              <rect x={300 + i*340} y="148" width="80" height="10" rx="2" fill="#fff" opacity="0.5"/>
+              <rect x={300 + i*340} y="176" width={140 - i*20} height="28" rx="3" fill="#fff" opacity="0.95"/>
+              <rect x={300 + i*340} y="222" width="240" height="36" rx="4" fill={c3} opacity={0.4 + i*0.15}/>
+            </g>
+          ))}
+          {/* chart */}
+          <rect x="280" y="320" width="640" height="380" rx="10" fill={c2} opacity="0.85"/>
+          <polyline points="320,640 420,560 520,600 620,480 720,520 820,400 880,440"
+            fill="none" stroke={c3} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round"/>
+          <polyline points="320,680 420,620 520,640 620,580 720,600 820,520 880,560"
+            fill="none" stroke="#fff" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" opacity="0.6"/>
+          {/* table */}
+          <rect x="940" y="320" width="440" height="380" rx="10" fill={c2} opacity="0.85"/>
+          {[0,1,2,3,4,5].map(i => (
+            <g key={i}>
+              <rect x="970" y={350 + i*55} width="40" height="40" rx="20" fill={c3} opacity="0.5"/>
+              <rect x="1024" y={362 + i*55} width={140 + (i%3)*30} height="8" rx="2" fill="#fff" opacity="0.7"/>
+              <rect x="1024" y={380 + i*55} width={80 + (i%2)*40} height="6" rx="2" fill="#fff" opacity="0.35"/>
+              <rect x="1300" y={368 + i*55} width="40" height="14" rx="7" fill={c3} opacity="0.7"/>
+            </g>
+          ))}
+        </g>
+      );
     }
+    if (type === 'editor') {
+      return (
+        <g>
+          <rect x="0" y="0" width={W} height="48" fill={c1}/>
+          <circle cx="22" cy="24" r="6" fill="#f7768e"/>
+          <circle cx="44" cy="24" r="6" fill="#ff9e64"/>
+          <circle cx="66" cy="24" r="6" fill="#9ece6a"/>
+          <rect x="100" y="14" width="200" height="20" rx="4" fill={c2} opacity="0.7"/>
+          {/* file tree */}
+          <rect x="0" y="48" width="220" height={H-48} fill={c1} opacity="0.85"/>
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <rect key={i} x={20 + (i%3===0?0:16)} y={80 + i*30}
+              width={140 - (i%4)*16} height="10" rx="2"
+              fill={i%3===0 ? c3 : '#fff'} opacity={i%3===0 ? 0.9 : 0.5}/>
+          ))}
+          {/* code area */}
+          {[
+            {c: c3, w: 80}, {c: '#fff', w: 220}, {c: c3, w: 60},
+            {c: c2, w: 300, indent: 1}, {c: '#fff', w: 240, indent: 1},
+            {c: c3, w: 100}, {c: '#fff', w: 280},
+            {c: c2, w: 340, indent: 1}, {c: '#fff', w: 200, indent: 1},
+            {c: '#fff', w: 160, indent: 1}, {c: c3, w: 60},
+            {c: '#fff', w: 320}, {c: c3, w: 100},
+            {c: c2, w: 280, indent: 1}, {c: '#fff', w: 240, indent: 1},
+          ].map((line, i) => (
+            <g key={i}>
+              <rect x="240" y={80 + i*36} width="20" height="10" rx="2" fill="#fff" opacity="0.25"/>
+              <rect x={280 + (line.indent||0)*40} y={80 + i*36}
+                width={line.w} height="14" rx="3"
+                fill={line.c} opacity="0.85"/>
+            </g>
+          ))}
+          {/* preview pane */}
+          <rect x="950" y="48" width={W-950} height={H-48} fill={c2} opacity="0.6"/>
+          <rect x="980" y="100" width="380" height="280" rx="10" fill="#fff" opacity="0.15"/>
+          <rect x="1010" y="140" width="200" height="18" rx="3" fill="#fff" opacity="0.85"/>
+          <rect x="1010" y="170" width="320" height="10" rx="2" fill="#fff" opacity="0.5"/>
+          <rect x="1010" y="186" width="280" height="10" rx="2" fill="#fff" opacity="0.5"/>
+          <rect x="1010" y="220" width="120" height="36" rx="6" fill={c3} opacity="0.9"/>
+          <rect x="980" y="420" width="380" height="180" rx="10" fill="#fff" opacity="0.1"/>
+        </g>
+      );
+    }
+    if (type === 'mobile') {
+      return (
+        <g>
+          {/* Backdrop */}
+          <rect x="0" y="0" width={W} height={H} fill={c1}/>
+          <circle cx="220" cy="180" r="160" fill={c3} opacity="0.18"/>
+          <circle cx="1240" cy="720" r="220" fill={c3} opacity="0.14"/>
+          {/* phone */}
+          <rect x="540" y="60" width="360" height="780" rx="40" fill={c2} stroke={c3} strokeWidth="3" opacity="0.95"/>
+          <rect x="560" y="120" width="320" height="700" rx="20" fill={c1}/>
+          {/* mobile content */}
+          <rect x="580" y="150" width="120" height="14" rx="3" fill="#fff" opacity="0.9"/>
+          <rect x="580" y="172" width="180" height="22" rx="3" fill={c3} opacity="0.95"/>
+          {[0,1,2,3].map(i => (
+            <g key={i}>
+              <rect x="580" y={220 + i*120} width="280" height="100" rx="10" fill={c2} opacity="0.95"/>
+              <rect x="600" y={240 + i*120} width="60" height="60" rx="8" fill={c3} opacity={0.3 + i*0.15}/>
+              <rect x="680" y={250 + i*120} width="140" height="12" rx="2" fill="#fff" opacity="0.85"/>
+              <rect x="680" y={270 + i*120} width="100" height="8" rx="2" fill="#fff" opacity="0.5"/>
+              <rect x="680" y={285 + i*120} width="80" height="8" rx="2" fill="#fff" opacity="0.5"/>
+            </g>
+          ))}
+          {/* nav floating */}
+          <rect x="100" y="380" width="320" height="180" rx="14" fill={c2} opacity="0.95"/>
+          <rect x="124" y="408" width="220" height="18" rx="3" fill="#fff" opacity="0.9"/>
+          <rect x="124" y="436" width="240" height="10" rx="2" fill="#fff" opacity="0.5"/>
+          <rect x="124" y="454" width="200" height="10" rx="2" fill="#fff" opacity="0.5"/>
+          <rect x="124" y="490" width="120" height="36" rx="6" fill={c3}/>
+          <rect x="1020" y="500" width="320" height="220" rx="14" fill={c2} opacity="0.95"/>
+          <rect x="1044" y="528" width="180" height="18" rx="3" fill="#fff" opacity="0.9"/>
+          <rect x="1044" y="558" width="270" height="120" rx="8" fill={c3} opacity="0.4"/>
+        </g>
+      );
+    }
+    if (type === 'data') {
+      return (
+        <g>
+          {/* nav top */}
+          <rect x="0" y="0" width={W} height="64" fill={c1}/>
+          <rect x="40" y="22" width="100" height="20" rx="3" fill={c3}/>
+          {/* big chart */}
+          <rect x="40" y="100" width={W-80} height="300" rx="12" fill={c2} opacity="0.9"/>
+          {/* bars */}
+          {[60, 110, 80, 140, 200, 160, 220, 180, 250, 170, 130, 90, 200, 230, 180].map((h, i) => (
+            <rect key={i}
+              x={80 + i*88} y={380 - h}
+              width="50" height={h} rx="4"
+              fill={i % 3 === 0 ? c3 : '#fff'}
+              opacity={i % 3 === 0 ? 0.95 : 0.6}/>
+          ))}
+          {/* row of stat cards */}
+          {[0,1,2,3].map(i => (
+            <g key={i}>
+              <rect x={40 + i*340} y="440" width="320" height="120" rx="10" fill={c2} opacity="0.85"/>
+              <rect x={64 + i*340} y="464" width="80" height="10" rx="2" fill="#fff" opacity="0.5"/>
+              <rect x={64 + i*340} y="486" width={120 + (i%2)*40} height="28" rx="3" fill={c3} opacity="0.9"/>
+              <rect x={64 + i*340} y="528" width="200" height="10" rx="2" fill="#fff" opacity="0.4"/>
+            </g>
+          ))}
+          {/* table */}
+          <rect x="40" y="600" width={W-80} height="280" rx="10" fill={c2} opacity="0.85"/>
+          {[0,1,2,3,4].map(i => (
+            <g key={i}>
+              <rect x="64" y={628 + i*48} width="40" height="40" rx="6" fill={c3} opacity="0.5"/>
+              <rect x="120" y={642 + i*48} width={200 + (i%3)*40} height="10" rx="2" fill="#fff" opacity="0.8"/>
+              <rect x="120" y={660 + i*48} width="120" height="8" rx="2" fill="#fff" opacity="0.4"/>
+              <rect x={W-260} y={638 + i*48} width="80" height="20" rx="10" fill={c3} opacity="0.7"/>
+              <rect x={W-160} y={638 + i*48} width="120" height="20" rx="10" fill="#fff" opacity="0.3"/>
+            </g>
+          ))}
+        </g>
+      );
+    }
+    // marketing default
+    return (
+      <g>
+        <rect x="0" y="0" width={W} height="80" fill={c1} opacity="0.6"/>
+        <rect x="60" y="32" width="120" height="16" rx="3" fill={c3}/>
+        {[0,1,2,3].map(i => (
+          <rect key={i} x={W-440 + i*100} y="34" width="60" height="12" rx="2" fill="#fff" opacity="0.5"/>
+        ))}
+        <rect x="60" y="160" width="200" height="14" rx="3" fill={c3} opacity="0.9"/>
+        <rect x="60" y="200" width="700" height="56" rx="3" fill="#fff" opacity="0.95"/>
+        <rect x="60" y="270" width="600" height="56" rx="3" fill="#fff" opacity="0.95"/>
+        <rect x="60" y="360" width="520" height="14" rx="3" fill="#fff" opacity="0.6"/>
+        <rect x="60" y="384" width="460" height="14" rx="3" fill="#fff" opacity="0.6"/>
+        <rect x="60" y="440" width="180" height="48" rx="6" fill={c3}/>
+        <rect x="260" y="440" width="180" height="48" rx="6" fill="transparent" stroke="#fff" strokeWidth="2" opacity="0.6"/>
+        {/* hero illustration on the right */}
+        <rect x="820" y="140" width="540" height="540" rx="24" fill={c2} opacity="0.85"/>
+        <circle cx="1090" cy="380" r="180" fill={c3} opacity="0.55"/>
+        <rect x="900" y="440" width="380" height="20" rx="4" fill="#fff" opacity="0.85"/>
+        <rect x="900" y="476" width="280" height="16" rx="3" fill="#fff" opacity="0.55"/>
+        <rect x="900" y="520" width="160" height="40" rx="6" fill={c1}/>
+        {/* footer rows */}
+        {[0,1,2].map(i => (
+          <g key={i}>
+            <rect x={60 + i*440} y="740" width="80" height="80" rx="14" fill={c2}/>
+            <rect x={160 + i*440} y="754" width="220" height="14" rx="3" fill="#fff" opacity="0.85"/>
+            <rect x={160 + i*440} y="780" width="280" height="10" rx="2" fill="#fff" opacity="0.5"/>
+            <rect x={160 + i*440} y="796" width="240" height="10" rx="2" fill="#fff" opacity="0.5"/>
+          </g>
+        ))}
+      </g>
+    );
+  };
 
-    const draw = () => {
-      raf = requestAnimationFrame(draw);
-      if (!visible) return;
-      const t = (performance.now() - t0) / 1000;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice"
+      style={{ width: '100%', height: '100%', display: 'block' }}>
+      <defs>
+        <linearGradient id={`bg-${label}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={c1} stopOpacity="0.9"/>
+          <stop offset="100%" stopColor={c2} stopOpacity="0.95"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${label})`}/>
+      {renderInner()}
+    </svg>
+  );
+}
 
-      const tx = mx > -9000 ? mx : W * 0.35;
-      const ty = my > -9000 ? my : H * 0.55;
-      cx += (tx - cx) * 0.12;
-      cy += (ty - cy) * 0.12;
+const PROJECTS = [
+  {
+    id: 'commerce',
+    title: 'orbit/commerce',
+    tagline: 'Headless storefront platform with sub-100ms TTFB',
+    stats: [
+      { icon: '🏬', label: '1.2k+ stores' },
+      { icon: '💰', label: '$4.8M GMV processed' },
+    ],
+    stack: [
+      { name: 'Next.js', color: 'var(--blue)' },
+      { name: 'Node.js', color: 'var(--purple)' },
+      { name: 'PostgreSQL', color: 'var(--purple)' },
+      { name: 'Redis', color: 'var(--purple)' },
+      { name: 'AWS', color: 'var(--orange)' },
+    ],
+    palette: ['#0d2840', '#1a3a5c', '#7aa2f7'],
+    type: 'dashboard',
+  },
+  {
+    id: 'lattice',
+    title: 'lattice',
+    tagline: 'Realtime collaborative whiteboard for distributed teams',
+    stats: [
+      { icon: '📊', label: '600+ daily active rooms' },
+      { icon: '⚡', label: '<30ms cursor latency' },
+    ],
+    stack: [
+      { name: 'React', color: 'var(--blue)' },
+      { name: 'TypeScript', color: 'var(--blue)' },
+      { name: 'Yjs', color: 'var(--purple)' },
+      { name: 'WebRTC', color: 'var(--purple)' },
+    ],
+    palette: ['#1f1530', '#2d2148', '#bb9af7'],
+    type: 'editor',
+  },
+  {
+    id: 'sift',
+    title: 'sift.dev',
+    tagline: 'CLI + dashboard for log search across heterogeneous services',
+    stats: [
+      { icon: '🟢', label: '99.9% uptime' },
+      { icon: '📦', label: '18B events indexed' },
+    ],
+    stack: [
+      { name: 'Go', color: 'var(--blue)' },
+      { name: 'ClickHouse', color: 'var(--purple)' },
+      { name: 'gRPC', color: 'var(--purple)' },
+      { name: 'Terraform', color: 'var(--orange)' },
+    ],
+    palette: ['#102a22', '#194036', '#9ece6a'],
+    type: 'data',
+  },
+  {
+    id: 'pace',
+    title: 'pace',
+    tagline: 'iOS-first habit tracker with offline-first CRDT sync',
+    stats: [
+      { icon: '⬇️', label: '24k downloads' },
+      { icon: '⭐', label: '4.8 App Store rating' },
+    ],
+    stack: [
+      { name: 'React Native', color: 'var(--blue)' },
+      { name: 'TypeScript', color: 'var(--blue)' },
+      { name: 'SQLite', color: 'var(--purple)' },
+      { name: 'Swift', color: 'var(--orange)' },
+    ],
+    palette: ['#3a1f1a', '#522d28', '#ff9e64'],
+    type: 'mobile',
+  },
+  {
+    id: 'kindle-club',
+    title: 'kindle.club',
+    tagline: 'A book-club companion that turns highlights into discussion prompts',
+    stats: [
+      { icon: '🧪', label: 'Side project' },
+      { icon: '🚀', label: '3k+ signups in 6 weeks' },
+    ],
+    stack: [
+      { name: 'Astro', color: 'var(--blue)' },
+      { name: 'SvelteKit', color: 'var(--blue)' },
+      { name: 'SQLite', color: 'var(--purple)' },
+      { name: 'OpenAI', color: 'var(--orange)' },
+    ],
+    palette: ['#3b1d2a', '#552a3d', '#f7768e'],
+    type: 'marketing',
+  },
+];
 
-      const since = performance.now() - lastSeen;
-      const cursorActive = mx > -9000 && since < 700;
-      state.act += ((cursorActive ? 1 : 0.22) - state.act) * 0.06;
-      const act = state.act;
+function Projects() {
+  const sectionRef = useRefP(null);
+  const trackRef = useRefP(null);
+  const [active, setActive] = useStateP(0);     // 0-indexed active card
+  const [isMobile, setIsMobile] = useStateP(false);
+  const [reduced, setReduced] = useStateP(false);
+  const total = PROJECTS.length;
+  const pad = (n) => String(n).padStart(2, '0');
 
-      ctx.clearRect(0, 0, W, H);
-
-      // Background glow
-      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, RADIUS * 1.4);
-      glow.addColorStop(0, `rgba(122,162,247,${0.04 * act})`);
-      glow.addColorStop(0.5, `rgba(122,162,247,${0.015 * act})`);
-      glow.addColorStop(1, 'rgba(122,162,247,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, W, H);
-
-      const sigma = 50;
-      const sigma2 = sigma * sigma;
-      const proj = new Array(pts.length);
-      for (let k = 0; k < pts.length; k++) {
-        const p = pts[k];
-        const breathe = Math.sin(t * p.fr + p.ph) * 0.9;
-        const dx = p.x - cx;
-        const dy = p.y - cy;
-        const d2 = dx * dx + dy * dy;
-        const dist = Math.sqrt(d2);
-        const farMask = dist > FAR_FADE ? 0 : 1;
-        const gauss = Math.exp(-d2 / (2 * sigma2));
-        const lift = (LIFT_MAX * act) * gauss * farMask + breathe;
-        const persp = FOCAL / (FOCAL - lift);
-        proj[k] = {
-          sx: cx + dx * persp,
-          sy: cy + dy * persp,
-          intensity: Math.min(1, gauss * farMask),
-        };
-      }
-
-      // Draw lines (horizontal + vertical neighbors)
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          const a = proj[j * cols + i];
-          if (i + 1 < cols) drawSeg(a, proj[j * cols + (i + 1)], act);
-          if (j + 1 < rows) drawSeg(a, proj[(j + 1) * cols + i], act);
-        }
-      }
-
-      // Draw points with halo
-      for (let k = 0; k < proj.length; k++) {
-        const a = proj[k];
-        if (a.intensity < 0.08) continue;
-        const isPurple = (k % 11 === 0) && a.intensity > 0.65;
-        const baseColor = isPurple ? '187,154,247' : '122,162,247';
-        const r = 0.6 + a.intensity * 1.4;
-        const peakAlpha = isPurple ? 0.5 : 0.66;
-        const alpha = peakAlpha * a.intensity * act;
-        const haloR = r * 3.0;
-        const grad = ctx.createRadialGradient(a.sx, a.sy, 0, a.sx, a.sy, haloR);
-        grad.addColorStop(0, `rgba(${baseColor},${alpha * 0.7})`);
-        grad.addColorStop(1, `rgba(${baseColor},0)`);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(a.sx, a.sy, haloR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = `rgba(${baseColor},${alpha})`;
-        ctx.beginPath();
-        ctx.arc(a.sx, a.sy, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
+  useEffectP(() => {
+    const mqMobile = window.matchMedia('(max-width: 1023px), (pointer: coarse)');
+    const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => {
+      setIsMobile(mqMobile.matches);
+      setReduced(mqReduce.matches);
     };
-
-    raf = requestAnimationFrame(draw);
+    update();
+    mqMobile.addEventListener('change', update);
+    mqReduce.addEventListener('change', update);
     return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseleave', onLeave);
-      window.removeEventListener('resize', resize);
-      io.disconnect();
+      mqMobile.removeEventListener('change', update);
+      mqReduce.removeEventListener('change', update);
     };
   }, []);
 
-  // Render: wrap div + static grid background div + canvas
+  const useStepped = !isMobile && !reduced;
+
+  // ===== Stepped scroll-lock mode (desktop) =====
+  // Architecture: section is a fixed 100vh container. When it aligns with
+  // viewport top, we lock body scroll (overflow:hidden) and intercept wheel
+  // events to advance cards. At edges, we release the lock and nudge the
+  // page to the next/prev section so navigation feels natural.
+  const animatingRef = useRefP(false);
+  const cooldownRef = useRefP(false);
+  const idleTimerRef = useRefP(null);
+  const gestureLockRef = useRefP(false);
+  const lastSwitchAtRef = useRefP(0);
+  const lastDirRef = useRefP(0);
+  const activeRef = useRefP(0);
+  const lockedRef = useRefP(false);
+  const releaseAtRef = useRefP(0); // suppress re-lock for a moment after release
+
+  useEffectP(() => { activeRef.current = active; }, [active]);
+
+  useEffectP(() => {
+    if (!useStepped) return;
+    const section = sectionRef.current;
+    const track = trackRef.current;
+    if (!section || !track) return;
+
+    const positionTrack = (idx, animate) => {
+      const cards = track.querySelectorAll('[data-card]');
+      if (!cards.length) return;
+      const card = cards[idx];
+      if (!card) return;
+      const padX = window.innerWidth * 0.1;
+      const targetX = -card.offsetLeft + padX;
+      track.style.transition = animate
+        ? 'transform 0.7s cubic-bezier(0.65, 0, 0.35, 1)'
+        : 'none';
+      track.style.transform = `translate3d(${targetX}px, 0, 0)`;
+    };
+
+    positionTrack(activeRef.current, false);
+
+    const lockBody = () => {
+      if (lockedRef.current) return;
+      lockedRef.current = true;
+      // Snap section to top precisely
+      const r = section.getBoundingClientRect();
+      const targetTop = window.scrollY + r.top;
+      window.scrollTo({ top: targetTop, behavior: 'auto' });
+      // Lock body scroll
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    };
+
+    const unlockBody = () => {
+      if (!lockedRef.current) return;
+      lockedRef.current = false;
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      releaseAtRef.current = performance.now();
+      // Reset gesture state so the next entry is clean
+      animatingRef.current = false;
+      cooldownRef.current = false;
+      gestureLockRef.current = false;
+      if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+    };
+
+    const advance = (dir) => {
+      if (animatingRef.current || cooldownRef.current) return false;
+      const next = activeRef.current + dir;
+      if (next < 0 || next >= total) return false;
+      animatingRef.current = true;
+      cooldownRef.current = true;
+      gestureLockRef.current = true;
+      activeRef.current = next;
+      setActive(next);
+      positionTrack(next, true);
+      lastSwitchAtRef.current = performance.now();
+      lastDirRef.current = dir;
+      window.setTimeout(() => { animatingRef.current = false; }, 720);
+      window.setTimeout(() => { cooldownRef.current = false; }, 900);
+      return true;
+    };
+
+    const armIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        gestureLockRef.current = false;
+        idleTimerRef.current = null;
+      }, 150);
+    };
+
+    // IntersectionObserver: lock when section aligns with viewport
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const r = entry.boundingClientRect;
+        // Don't re-lock immediately after release (give user a moment)
+        if (performance.now() - releaseAtRef.current < 800) return;
+        // Lock when section is fully in viewport (top ≈ 0 and ratio ≈ 1)
+        if (entry.intersectionRatio >= 0.98 && Math.abs(r.top) < 10) {
+          lockBody();
+        }
+      });
+    }, { threshold: [0, 0.5, 0.98, 1] });
+    observer.observe(section);
+
+    const onWheel = (e) => {
+      if (!lockedRef.current) return;
+      const dy = e.deltaY;
+      const dx = e.deltaX;
+      const delta = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+      if (Math.abs(delta) < 2) return;
+
+      const dir = delta > 0 ? 1 : -1;
+
+      // Always preventDefault while locked — this is the contract
+      e.preventDefault();
+
+      // Edge release: at last card going down, or first card going up,
+      // release lock and nudge the page in that direction
+      if (dir > 0 && activeRef.current >= total - 1) {
+        unlockBody();
+        window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+        return;
+      }
+      if (dir < 0 && activeRef.current <= 0) {
+        unlockBody();
+        window.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
+        return;
+      }
+
+      armIdleTimer();
+      if (animatingRef.current || cooldownRef.current) return;
+      if (gestureLockRef.current) return;
+      const sinceLast = performance.now() - lastSwitchAtRef.current;
+      if (lastDirRef.current === dir && sinceLast < 1000) return;
+
+      advance(dir);
+    };
+
+    const onKey = (e) => {
+      if (!lockedRef.current) return;
+      const isNext = e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ';
+      const isPrev = e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp';
+      if (!isNext && !isPrev) return;
+      const dir = isNext ? 1 : -1;
+      e.preventDefault();
+      if (dir > 0 && activeRef.current >= total - 1) {
+        unlockBody();
+        window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+        return;
+      }
+      if (dir < 0 && activeRef.current <= 0) {
+        unlockBody();
+        window.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
+        return;
+      }
+      if (animatingRef.current || cooldownRef.current) return;
+      advance(dir);
+    };
+
+    const onResize = () => positionTrack(activeRef.current, false);
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      // Always unlock body on unmount
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [useStepped, total]);
+
+  // ===== Mobile/touch swipe mode =====
+  const mobileScrollerRef = useRefP(null);
+  useEffectP(() => {
+    if (useStepped) return;
+    const el = mobileScrollerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const cards = el.querySelectorAll('[data-card]');
+      let bestIdx = 0, bestDist = Infinity;
+      const center = el.scrollLeft + el.clientWidth * 0.4;
+      cards.forEach((c, i) => {
+        const cx = c.offsetLeft + c.offsetWidth / 2;
+        const d = Math.abs(cx - center);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      });
+      setActive(bestIdx);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [useStepped]);
+
+  const skipToExperience = () => {
+    // Unlock body scroll if locked
+    if (lockedRef.current) {
+      lockedRef.current = false;
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      releaseAtRef.current = performance.now();
+    }
+    const target = document.getElementById('experience');
+    if (!target) return;
+    const top = target.getBoundingClientRect().top + window.scrollY - 60;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  const goTo = (idx) => {
+    if (animatingRef.current || cooldownRef.current) return;
+    if (idx === activeRef.current || idx < 0 || idx >= total) return;
+    const track = trackRef.current;
+    if (!track) return;
+    animatingRef.current = true;
+    cooldownRef.current = true;
+    activeRef.current = idx;
+    setActive(idx);
+    const cards = track.querySelectorAll('[data-card]');
+    const card = cards[idx];
+    if (card) {
+      const padX = window.innerWidth * 0.1;
+      track.style.transition = 'transform 0.7s cubic-bezier(0.65, 0, 0.35, 1)';
+      track.style.transform = `translate3d(${-card.offsetLeft + padX}px, 0, 0)`;
+    }
+    lastSwitchAtRef.current = performance.now();
+    window.setTimeout(() => { animatingRef.current = false; }, 720);
+    window.setTimeout(() => { cooldownRef.current = false; }, 900);
+  };
+
+  const Header = (
+    <div style={{
+      maxWidth: 1400, margin: '0 auto',
+      padding: '0 64px',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+      gap: 24, marginBottom: 20,
+      flexShrink: 0,
+    }} className="projects-header">
+      <div>
+        <div className="section-title" style={{ marginBottom: 12 }}>// projects</div>
+        <h2 style={{
+          fontFamily: 'var(--mono)', fontWeight: 700,
+          fontSize: 'clamp(32px, 4vw, 48px)',
+          color: 'var(--fg)', letterSpacing: '-0.01em', lineHeight: 1.1,
+        }}>
+          things I&apos;ve <span style={{ color: 'var(--green)' }}>shipped</span>.
+        </h2>
+      </div>
+
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12,
+        minWidth: 280,
+      }} className="projects-meta">
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 14, color: 'var(--fg-2)' }}>
+          <span style={{ color: 'var(--green)' }}>{pad(active + 1)}</span>
+          <span style={{ color: 'var(--comment)' }}> / {pad(total)}</span>
+        </div>
+        {/* Stepped progress: discrete segments */}
+        <div style={{
+          display: 'flex', gap: 4, width: 240,
+        }}>
+          {PROJECTS.map((_, i) => (
+            <button key={i}
+              onClick={() => useStepped ? goTo(i) : null}
+              aria-label={`Go to project ${i + 1}`}
+              style={{
+                flex: 1, height: 6, padding: 0,
+                background: i <= active
+                  ? (i === active ? 'var(--green)' : 'var(--blue)')
+                  : 'var(--bg-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                cursor: useStepped ? 'pointer' : 'default',
+                transition: 'background 0.4s ease',
+              }}/>
+          ))}
+        </div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--comment)' }}>
+          {useStepped ? 'scroll · ←/→' : 'swipe →'}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ====== Mobile rendering: simple touch-swipe scroller ======
+  if (!useStepped) {
+    return (
+      <section style={{
+        maxWidth: 'none', width: '100%',
+        padding: '120px 0',
+      }} className="projects-section">
+        <span id="projects" className="anchor"></span>
+        {Header}
+        <div ref={mobileScrollerRef}
+          className="hide-scrollbar"
+          style={{
+            display: 'flex',
+            gap: 24,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            padding: '8px 24px 24px',
+            scrollSnapType: 'x mandatory',
+            scrollPaddingLeft: 24,
+            WebkitOverflowScrolling: 'touch',
+          }}>
+          {PROJECTS.map((p, i) => (
+            <ProjectCard key={p.id} project={p} index={i+1} />
+          ))}
+          <div style={{ flex: '0 0 24px' }} aria-hidden="true"></div>
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 8,
+          marginTop: 16,
+        }}>
+          {PROJECTS.map((_, i) => (
+            <span key={i} style={{
+              width: i === active ? 22 : 8,
+              height: 8, borderRadius: 4,
+              background: i === active ? 'var(--green)' : 'var(--border)',
+              transition: 'all 0.2s ease',
+            }}></span>
+          ))}
+        </div>
+
+        <style>{`
+          .hide-scrollbar { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+          .hide-scrollbar::-webkit-scrollbar { height: 8px; }
+          .hide-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+          .projects-header { padding: 0 24px !important; flex-direction: column; align-items: flex-start !important; }
+          .projects-meta { align-items: flex-start !important; }
+        `}</style>
+      </section>
+    );
+  }
+
+  // ====== Desktop stepped scroll-lock ======
+  // Section is exactly 100vh — no oversized container, no sticky.
+  // Body scroll is locked while user is inside the section (managed by effect above).
+
+  return (
+    <section ref={sectionRef} className="projects-section" style={{
+      maxWidth: 'none', width: '100%',
+      padding: 0,
+      position: 'relative',
+      height: '100vh',
+      overflow: 'hidden',
+    }}>
+      <span id="projects" className="anchor"></span>
+
+      <div style={{
+        height: '100%',
+        width: '100%',
+        display: 'flex', flexDirection: 'column',
+        paddingTop: 64,
+        paddingBottom: 32,
+        overflow: 'hidden',
+      }}>
+        {Header}
+
+        <div style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex', alignItems: 'stretch',
+          overflow: 'hidden',
+          padding: '8px 0 24px',
+        }}>
+          <div ref={trackRef} style={{
+            display: 'flex',
+            alignItems: 'stretch',
+            gap: '4vw',
+            paddingLeft: '10vw',
+            paddingRight: '10vw',
+            willChange: 'transform',
+            transform: 'translate3d(0,0,0)',
+          }}>
+            {PROJECTS.map((p, i) => (
+              <ProjectCard key={p.id} project={p} index={i+1} dimmed={i !== active}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Prev / Next + Skip */}
+        <div style={{
+          position: 'absolute',
+          right: 24, bottom: 24,
+          display: 'flex', gap: 8,
+          zIndex: 5,
+        }}>
+          <button onClick={() => goTo(active - 1)}
+            disabled={active === 0}
+            aria-label="Previous project"
+            style={navBtnStyle(active === 0)}>←</button>
+          <button onClick={() => goTo(active + 1)}
+            disabled={active === total - 1}
+            aria-label="Next project"
+            style={navBtnStyle(active === total - 1)}>→</button>
+          <button onClick={skipToExperience}
+            style={{
+              background: 'var(--bg-2)',
+              border: '1px solid var(--border)',
+              color: 'var(--fg-2)',
+              fontFamily: 'var(--mono)',
+              fontSize: 12,
+              padding: '8px 14px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              transition: 'all 0.18s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--green)'; e.currentTarget.style.borderColor = 'var(--green)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--fg-2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+            [ skip → ]
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .hide-scrollbar { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+        .hide-scrollbar::-webkit-scrollbar { height: 8px; }
+        .hide-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        @media (max-width: 1023px) {
+          .projects-header { padding: 0 24px !important; flex-direction: column; align-items: flex-start !important; }
+          .projects-meta { align-items: flex-start !important; }
+        }
+      `}</style>
+    </section>
+  );
 }
-```
 
----
+function navBtnStyle(disabled) {
+  return {
+    background: 'var(--bg-2)',
+    border: '1px solid var(--border)',
+    color: disabled ? 'var(--comment)' : 'var(--fg)',
+    fontFamily: 'var(--mono)',
+    fontSize: 14,
+    width: 36, height: 36,
+    borderRadius: 6,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    transition: 'all 0.18s ease',
+  };
+}
 
-## 為什麼這個版本必須完整重做(不要漸進修補)
+function ProjectCard({ project, index, dimmed }) {
+  const [hover, setHover] = useStateP(false);
+  const p = project;
+  return (
+    <article data-card
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        flex: '0 0 80vw',
+        width: '80vw',
+        maxWidth: 1120,
+        minWidth: 320,
+        height: '100%',           // fills the cards row (which has flex:1 in the section)
+        scrollSnapAlign: 'start',
+        position: 'relative',
+        borderRadius: 14,
+        overflow: 'hidden',
+        background: 'var(--bg-2)',
+        border: `1px solid ${hover && !dimmed ? 'var(--blue)' : 'var(--border)'}`,
+        boxShadow: hover && !dimmed
+          ? '0 24px 48px -16px rgba(0,0,0,0.6), 0 0 0 1px rgba(122,162,247,0.2)'
+          : '0 8px 24px -12px rgba(0,0,0,0.5)',
+        transform: hover && !dimmed ? 'translateY(-6px)' : 'translateY(0)',
+        opacity: dimmed ? 0.25 : 1,
+        filter: dimmed ? 'saturate(0.6) blur(1px)' : 'none',
+        transition: 'opacity 0.5s ease, filter 0.5s ease, transform 0.32s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.32s ease, box-shadow 0.32s ease',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      className="project-card">
+      {/* Top: mockup screenshot region — flex:1 so it takes remaining space */}
+      <div style={{
+        flex: '1 1 auto',
+        minHeight: 0,
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <ProjectScreenshot palette={p.palette} label={p.id} type={p.type}/>
+        {/* index badge over screenshot */}
+        <div style={{
+          position: 'absolute', top: 16, left: 18,
+          fontFamily: 'var(--mono)', fontSize: 12,
+          color: 'var(--fg-2)',
+          background: 'rgba(26,27,38,0.7)',
+          padding: '4px 10px', borderRadius: 4,
+          border: '1px solid var(--border)',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <span style={{ color: 'var(--comment)' }}>#</span>
+          <span style={{ color: 'var(--orange)' }}>{String(index).padStart(2, '0')}</span>
+        </div>
+        {/* Soft fade at bottom into content area */}
+        <div style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0, height: 60,
+          background: 'linear-gradient(to bottom, rgba(26,27,38,0) 0%, var(--bg-2) 100%)',
+          pointerEvents: 'none',
+        }}></div>
+      </div>
 
-目前的 GridSphere 元件的核心問題是「演算法錯誤」,不是「參數錯誤」:
+      {/* Bottom: content region — fixed sizing, no shrink */}
+      <div style={{
+        flex: '0 0 auto',
+        padding: '20px 28px 24px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+        background: 'var(--bg-2)',
+        borderTop: '1px solid var(--border)',
+      }} className="card-content">
+        {/* tech tags */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: '4px 10px',
+          fontFamily: 'var(--mono)', fontSize: 12,
+          flexShrink: 0,
+        }}>
+          {p.stack.map(t => (
+            <span key={t.name} style={{ color: t.color }}>
+              <span style={{ color: 'var(--comment)' }}>·</span> {t.name}
+            </span>
+          ))}
+        </div>
+        {/* title */}
+        <h3 style={{
+          fontFamily: 'var(--mono)', fontWeight: 700,
+          fontSize: 'clamp(24px, 2.6vw, 36px)',
+          color: 'var(--fg)', lineHeight: 1.05,
+          letterSpacing: '-0.01em',
+          flexShrink: 0,
+        }}>
+          {p.title}
+        </h3>
+        {/* tagline */}
+        <p style={{
+          color: 'var(--fg-2)', fontSize: 15, maxWidth: 720,
+          fontFamily: 'var(--sans)',
+          lineHeight: 1.5,
+          flexShrink: 0,
+        }}>
+          {p.tagline}
+        </p>
+        {/* stat badges + buttons row */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 16, flexWrap: 'wrap',
+          flexShrink: 0,
+          marginTop: 4,
+        }}>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8,
+          }}>
+            {(p.stats || []).map((stat, i) => (
+              <span key={i} style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+                color: 'var(--fg)',
+                background: 'rgba(122,162,247,0.08)',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                padding: '5px 12px 5px 10px',
+              }}>
+                <span style={{ fontSize: 13, lineHeight: 1 }}>{stat.icon}</span>
+                <span>{stat.label}</span>
+              </span>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <a href="#" onClick={(e) => e.preventDefault()}
+              className="btn btn-primary btn-small">
+              [ live <span style={{ fontSize: 11 }}>↗</span> ]
+            </a>
+            <a href="#" onClick={(e) => e.preventDefault()}
+              className="btn btn-ghost btn-small">
+              [ code <span style={{ fontSize: 11 }}>↗</span> ]
+            </a>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
 
-- 沒有真正的透視投影(只有平移)
-- 沒有雙向連線(點之間沒連線,所以看起來像粒子)
-- 沒有遠距硬裁切(球體邊緣模糊)
-
-這些是**結構性差異**,小改沒用。請完全用上方參考實作的演算法重寫整個 grid-sphere.tsx。
-
-完成後 npm run dev,測試:
-1. 沒滑鼠時 hero 有可見的淡網格底紋
-2. 滑鼠移到任意位置都觸發效果
-3. 凸起明顯有 3D 立體感(線條彎曲),不是粒子飄
-4. 球體邊緣有明確範圍(不會擴散到整個畫面)
-5. 滑鼠靜止 1 秒後球體變淡(act 降到 0.22)
-6. CTA 按鈕仍可正常 hover 與點擊
-7. 縮到手機尺寸時 canvas 不啟動,只剩靜態網格
+Object.assign(window, { Projects });

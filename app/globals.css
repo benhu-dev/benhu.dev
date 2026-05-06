@@ -12,6 +12,14 @@
   --syntax-keyword: #bb9af7;
   --syntax-number: #ff9e64;
   --syntax-error: #f7768e;
+
+  /* SSR fallback only — Nav's ResizeObserver overwrites this with the real
+     measured height on mount, so any future nav redesign auto-propagates. */
+  --nav-height: 64px;
+}
+
+html {
+  scroll-padding-top: var(--nav-height);
 }
 
 @theme inline {
@@ -31,8 +39,10 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-* {
-  border-color: var(--border-default);
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
 }
 
 html,
@@ -69,52 +79,72 @@ body {
   background: var(--text-muted);
 }
 
-/* Pulsing dot animation */
+/* Pulsing dot animation — scale + fade */
 @keyframes pulse-dot {
   0%,
   100% {
+    transform: scale(1);
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(158, 206, 106, 0.7);
   }
   50% {
+    transform: scale(1.4);
     opacity: 0.6;
-    box-shadow: 0 0 0 6px rgba(158, 206, 106, 0);
   }
 }
 
 .pulse-dot {
-  animation: pulse-dot 2s ease-in-out infinite;
+  animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
-/* Blinking cursor */
-@keyframes blink {
+/* Typewriter cursor — sharp blink */
+@keyframes blink-cursor {
   0%,
-  50% {
+  100% {
     opacity: 1;
   }
-  51%,
-  100% {
+  50% {
     opacity: 0;
   }
 }
 
-.cursor-blink {
-  animation: blink 1s step-end infinite;
+.blink-cursor {
+  animation: blink-cursor 1s step-end infinite;
 }
 
-/* Subtle scroll bounce */
-@keyframes bounce-subtle {
+/* Scroll-indicator arrow — gentle bob with opacity drift */
+@keyframes fade-bob {
   0%,
   100% {
     transform: translateY(0);
+    opacity: 0.5;
   }
   50% {
     transform: translateY(6px);
+    opacity: 1;
   }
 }
 
-.bounce-subtle {
-  animation: bounce-subtle 2s ease-in-out infinite;
+.fade-bob {
+  animation: fade-bob 2.4s ease-in-out infinite;
+}
+
+/* Pixelated image rendering for pixel-art assets */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Subtle scrollbar for horizontal swipe scrollers (Projects mobile fallback) */
+.hide-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+.hide-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
 }
 
 /* Hero text shadow for readability over canvas */

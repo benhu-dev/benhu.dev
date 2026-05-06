@@ -20,17 +20,24 @@ export interface Skills {
 
 export interface ProjectStat {
   icon: string;
-  text: string;
+  label: string;
 }
+
+export interface ProjectStackTag {
+  name: string;
+  color: string;
+}
+
+export type ProjectMockupType = 'dashboard' | 'editor' | 'marketing' | 'mobile' | 'data';
 
 export interface Project {
   id: string;
   title: string;
   tagline: string;
-  description?: string;
-  stack: string[];
   stats: ProjectStat[];
-  image: string;
+  stack: ProjectStackTag[];
+  palette: [string, string, string];
+  type: ProjectMockupType;
   liveUrl?: string;
   codeUrl?: string;
 }

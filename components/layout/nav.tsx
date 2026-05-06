@@ -1,12 +1,13 @@
 'use client';
 
 import { Menu, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { useActiveSection } from '@/hooks/use-active-section';
 import { cn } from '@/lib/utils';
 
-import { FileTab } from './file-tab';
+import { Logo } from './logo';
 
 const NAV_ITEMS = [
   { id: 'about', label: '// about' },
@@ -20,9 +21,27 @@ export function Nav() {
   const [open, setOpen] = useState(false);
   const sectionIds = useMemo(() => NAV_ITEMS.map((i) => i.id), []);
   const active = useActiveSection(sectionIds);
+  const headerRef = useRef<HTMLElement | null>(null);
+
+  // Publish the rendered nav height to a CSS variable. Hero (and anything
+  // else that needs to clear the sticky nav) reads `var(--nav-height)`.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const height = entry.contentRect.height;
+      document.documentElement.style.setProperty('--nav-height', `${height}px`);
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > window.innerHeight * 0.7);
+    const onScroll = () => setScrolled(window.scrollY > window.innerHeight * 0.6);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -48,25 +67,24 @@ export function Nav() {
   return (
     <>
       <header
+        ref={headerRef}
         className={cn(
-          'fixed inset-x-0 top-0 z-40 transition-all duration-300',
+          'fixed inset-x-0 top-0 z-40 border-b transition-all duration-300 ease-out',
           scrolled
-            ? 'bg-bg-primary/85 border-border-default border-b backdrop-blur-md'
-            : 'border-b border-transparent bg-transparent',
+            ? 'border-b-border-default bg-bg-primary/70 backdrop-blur-md'
+            : 'backdrop-blur-0 border-b-transparent bg-transparent',
         )}
       >
         <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="border-border-default bg-bg-secondary text-syntax-string hover:border-syntax-string flex h-7 w-7 items-center justify-center rounded-sm border font-mono text-xs font-bold transition-colors"
-              aria-label="Scroll to top"
-            >
-              [B]
-            </button>
-            <FileTab className="hidden sm:inline-flex" />
-          </div>
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="group flex cursor-pointer items-center gap-2.5"
+            aria-label="Scroll to top"
+          >
+            <Logo size={22} />
+            <span className="text-text-primary font-mono text-sm">ben-hu.tsx</span>
+          </button>
 
           <ul className="hidden items-center gap-6 font-mono text-sm md:flex">
             {NAV_ITEMS.map((item) => {
@@ -77,8 +95,10 @@ export function Nav() {
                     type="button"
                     onClick={() => scrollTo(item.id)}
                     className={cn(
-                      'hover:text-syntax-string transition-colors duration-150',
-                      isActive ? 'text-syntax-string' : 'text-text-secondary',
+                      'cursor-pointer px-1 py-2 transition-colors duration-200',
+                      isActive
+                        ? 'text-syntax-string'
+                        : 'text-text-secondary hover:text-text-primary',
                     )}
                     aria-current={isActive ? 'true' : undefined}
                   >
@@ -88,20 +108,16 @@ export function Nav() {
               );
             })}
             <li>
-              <button
-                type="button"
-                onClick={() => scrollTo('contact')}
-                className="bg-syntax-string text-bg-primary hover:bg-syntax-string/90 rounded-sm px-3 py-1.5 font-mono text-sm font-semibold transition-colors"
-              >
+              <Button variant="primary" size="sm" onClick={() => scrollTo('contact')}>
                 &gt; hire_me
-              </button>
+              </Button>
             </li>
           </ul>
 
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="text-text-primary md:hidden"
+            className="text-text-primary cursor-pointer md:hidden"
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
           >
@@ -124,7 +140,7 @@ export function Nav() {
                 type="button"
                 onClick={() => scrollTo(item.id)}
                 className={cn(
-                  'font-mono text-2xl transition-colors',
+                  'cursor-pointer font-mono text-2xl transition-colors',
                   isActive ? 'text-syntax-string' : 'text-text-primary',
                 )}
               >
@@ -132,13 +148,9 @@ export function Nav() {
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => scrollTo('contact')}
-            className="bg-syntax-string text-bg-primary mt-4 rounded-sm px-6 py-3 font-mono text-lg font-semibold"
-          >
+          <Button variant="primary" size="lg" onClick={() => scrollTo('contact')} className="mt-4">
             &gt; hire_me
-          </button>
+          </Button>
         </div>
       )}
     </>
