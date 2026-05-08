@@ -1,109 +1,125 @@
-# Build the OG image programmatically
+# Polish the 404 page (final round, simplified)
 
-The current OG image is `public/images/og-image.svg` — a hand-rolled
-placeholder that:
-- Is SVG (Twitter, LinkedIn, iMessage, Slack often don't render SVG OG images)
-- Has stale text saying "Taipei" but the user's `personal.location` 
-  is now LA-based
+## Context
 
-Replace it with a Next.js `opengraph-image.tsx` file convention that
-renders to PNG at build time using `next/og`.
+The current `app/not-found.tsx` has these issues:
+
+1. The pixel-art "404" is hard to read — users see "qOP". The
+   pixel grid for digits 4, 0, 4 is not legible.
+
+2. The `> return home()` button has no hover effect. It should
+   match the green primary CTA in Hero
+   (`> view_projects()` button is the reference).
+
+3. The page is static. We want light terminal-themed motion on
+   the existing 404 visual + caption — but it must NOT block
+   user interaction with the heading or button.
 
 ## Task
 
-### Part 1: Create `app/opengraph-image.tsx`
+### Part 1: Fix pixel-art "404" digit legibility
 
-Use the Next.js Metadata Files API. The file should:
+Redraw the pixel grid so digits "4", "0", "4" are immediately
+recognizable. Use a standard 5-wide × 7-tall pixel font layout
+per digit (NES-era style), 1 column gap between digits.
 
-- Export `size = { width: 1200, height: 630 }`
-- Export `contentType = 'image/png'`
-- Export `alt` describing the image (e.g., 
-  `${personal.name} | ${personal.title}`)
-- Default-export an async function returning `new ImageResponse(...)`
-- Import data from `@/data/content` (use `personal` and `seo`) — do
-  NOT hardcode strings
+Reference cells filled (where `█` is on, `·` is off):
 
-### Design spec
+```
+"4":     "0":
+█ · · █  · █ █ ·
+█ · · █  █ · · █
+█ · · █  █ · · █
+█ █ █ █  █ · · █
+· · · █  █ · · █
+· · · █  █ · · █
+· · · █  · █ █ ·
+```
 
-The image is a marketing card for the portfolio. It must feel
-consistent with the site's IDE / Tokyo Night aesthetic:
+Both "4" digits identical. Keep existing
+`var(--syntax-function)` blue color. Keep existing pixel cell
+size.
 
-- Background: `#1a1b26` (Tokyo Night base) with a subtle dot grid
-  or vertical gradient. Don't over-decorate.
-- Typography: monospace family. Use `JetBrains Mono` if the runtime
-  allows custom fonts via fetch — Vercel's edge runtime supports
-  loading fonts from Google Fonts at build time. If that's
-  fragile, fall back to a system monospace stack — readability
-  matters more than the exact font.
-- Layout (rough — refine for visual balance):
-  - Top-left: small subtitle in a muted color, e.g., 
-    `~/portfolio` or `// benhu.dev`
-  - Center-left, large: `personal.name` (e.g., "Ben Hu") in 
-    Tokyo Night green `#9ece6a` or blue `#7aa2f7` — pick what 
-    looks better at scale
-  - Below name, smaller: `personal.title` ("Full-Stack Engineer")
-    in muted foreground `#c0caf5`
-  - Bottom-left: `personal.location` and a status pill matching
-    `personal.status` (or omit pill if too busy)
-  - Bottom-right: `seo.url` host in a muted color
-- Colors must come from the actual Tokyo Night palette already used
-  in the site CSS — check `app/globals.css` for the source of truth.
+### Part 2: Match return-home button hover to Hero CTA
 
-Aim for the same visual language as the live site, not a generic 
-"developer portrait" template.
+Open `components/sections/hero.tsx`. Find `> view_projects()`
+button. Copy its full className onto the `> return home()`
+button in `app/not-found.tsx`.
 
-### Part 2: Update metadata to use the convention
+Hover should invert: background becomes transparent, text
+becomes syntax-string green, with the inset border + outer
+glow shadow effect.
 
-In `app/layout.tsx`:
-- Remove or replace the `openGraph.images` and `twitter.images` 
-  entries that point at `/images/og-image.svg`. With the file 
-  convention in place, Next.js auto-injects the correct OG image 
-  meta tags. You can either:
-  
-  Option A: Remove the manual `images` arrays entirely and let the
-  convention handle everything (cleanest).
-  
-  Option B: Keep the arrays but point them at `/opengraph-image` 
-  (the route Next.js generates).
-  
-  Choose A.
+### Part 3: Animate ONLY the pixel "404" and its caption
 
-In `data/content.ts`:
-- Update `seo.ogImage` — either remove it from the type and exports
-  (since it's no longer needed) or set it to a sensible default 
-  that's still used somewhere. Check for any other consumers of 
-  `seo.ogImage` first.
+The animation applies to two existing elements only:
+- The pixel-art "404" (just redrawn in Part 1)
+- The caption directly under it: `// 404 — page_not_found`
 
-### Part 3: Optional — also create twitter-image.tsx
+**Animation behavior**:
 
-Twitter card spec is identical to OG (1200×630, PNG). Either:
+- Pixel "404": each pixel cell fades in sequentially, scanning
+  left-to-right, top-to-bottom. ~8ms delay between cells. Each
+  cell uses a 200ms fade-in transition. Total runtime for the
+  pixel grid is roughly 0.6-0.8s depending on cell count.
 
-Option A: Re-export the same component from 
-  `app/twitter-image.tsx` — Next.js will use it for `twitter:image`.
+- After pixel grid finishes, the caption types in
+  character-by-character at 30ms per char (~600ms for the full
+  caption). After typing completes, append a small blinking
+  cursor at the end of the caption (same style as the Hero
+  blinking cursor).
 
-Option B: Skip it — Next.js will fall back to the OG image for 
-  Twitter cards automatically. This is fine.
+- Total animation runtime: ~1.2-1.5 seconds.
 
-Choose B unless creating the re-export is trivial.
+**Critical UX rule**: the heading
+(`Looks like this route doesn't exist...`) and the
+`> return home()` button must render at full opacity from
+frame 0. The user can click return-home immediately, before
+the pixel/caption animation finishes.
 
-### Part 4: Clean up old placeholder
+**Implementation notes**:
+- This will require `"use client"` and `useEffect` /
+  `useState`. Extract into its own component file (e.g.,
+  `components/effects/not-found-typer.tsx` or similar) so the
+  page file stays simple. The component owns BOTH the pixel
+  grid render and the caption — this lets the animation
+  sequence cleanly without prop-drilling timing state.
 
-- Delete `public/images/og-image.svg`
-- If `public/images/` is now empty, delete the directory
+**Reduced motion support**:
+- Check `window.matchMedia('(prefers-reduced-motion: reduce)').matches`.
+- If true: render the full pixel grid + full caption text
+  immediately, no fade or typing.
 
-## QA
+## Out of scope (do NOT add)
+
+- No fake terminal command lines
+  (no `$ git checkout`, no `error: pathspec`)
+- No random dev quotes
+- No glitch effects, Konami codes, or interactive games
+- No changes to `app/error.tsx`
+- No theme color changes
+
+## Final layout, top to bottom (unchanged from current page)
+
+1. Pixel "404" (Part 1 redraw + Part 3 fade-in animation)
+2. `// 404 — page_not_found` caption (Part 3 typing animation
+   + blinking cursor)
+3. `Looks like this route doesn't exist in our codebase.`
+   heading (immediate, full opacity)
+4. `> return home()` button (Part 2 hover, immediate)
+
+## Quality
 
 - `npm run lint` — 0 errors / 0 warnings
 - `npm run type-check` — clean
-- `npm run build` — clean. Build output should show
-  `/opengraph-image` as a generated route emitting a PNG.
-- Open `http://localhost:3000/opengraph-image` in a browser — 
-  should display the rendered 1200×630 PNG. Confirm it looks 
-  professional, on-brand, and the text matches current data
-  (no stale Taipei reference).
-
-## Out of scope
-
-- No actual posting/sharing test — that requires the site to be 
-  deployed. The user will validate on opengraph.dev or similar 
-  after deploy.
+- `npm run build` — clean
+- Manually visit `http://localhost:3000/some-fake-route`:
+  - Pixel "404" reads clearly as "404"
+  - Pixel grid fades in cell-by-cell, ~0.6-0.8s
+  - Caption types in after pixel grid finishes,
+    cursor blinks at end
+  - Heading and button are visible from frame 0
+  - Button can be clicked at any time during animation
+  - Hover on button: green glow inversion
+  - With OS reduced-motion enabled: animation skips,
+    everything renders immediately

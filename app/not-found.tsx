@@ -1,45 +1,22 @@
 import Link from 'next/link';
 
-const PIXEL_404 = [
-  '. X X X . X X X . X X X .',
-  'X . . X . X . X . X . . X',
-  'X . . X . X . X . X . . X',
-  'X . . X . X . X . X . . X',
-  'X X X X . X . X . X X X X',
-  '. . . X . X . X . X . . .',
-  '. . . X . X . X . X . . .',
-  '. . . X . X X X . X . . .',
-];
+import { NotFoundTyper } from '@/components/effects/not-found-typer';
 
 export default function NotFound() {
   return (
     <div className="bg-bg-primary text-text-primary relative flex min-h-screen flex-col items-center justify-center px-4 py-20 text-center">
-      <div
-        className="mx-auto grid gap-1 font-mono"
-        style={{ gridTemplateColumns: 'repeat(13, 12px)' }}
-        aria-hidden="true"
-      >
-        {PIXEL_404.flatMap((row, r) =>
-          row
-            .split(' ')
-            .map((cell, c) => (
-              <span
-                key={`${r}-${c}`}
-                className="block h-3 w-3"
-                style={{ backgroundColor: cell === 'X' ? '#7aa2f7' : 'transparent' }}
-              />
-            )),
-        )}
-      </div>
+      <NotFoundTyper />
 
-      <p className="text-text-muted mt-10 font-mono text-sm">{'// 404 — page_not_found'}</p>
       <h1 className="mt-3 font-mono text-2xl font-bold sm:text-3xl">
         Looks like this route doesn&apos;t exist in our codebase.
       </h1>
 
+      {/* Same className as Hero's `> view_projects()` Button (variant=primary,
+          size=md): green fill that inverts to outlined-green-on-transparent
+          on hover, with the inset-border + outer-glow shadow. */}
       <Link
         href="/"
-        className="bg-syntax-string text-bg-primary hover:bg-syntax-string/90 mt-8 inline-flex items-center gap-2 rounded-sm px-5 py-3 font-mono text-sm font-semibold transition-colors"
+        className="border-syntax-string bg-syntax-string text-bg-primary hover:text-syntax-string mt-8 inline-flex cursor-pointer items-center justify-center gap-2 rounded border px-4 py-2 font-mono text-xs font-semibold transition-all duration-200 hover:bg-transparent hover:shadow-[inset_0_0_0_2px_var(--syntax-string),0_0_24px_-8px_var(--syntax-string)] md:px-5 md:py-2.5 md:text-sm"
       >
         &gt; return home()
       </Link>
