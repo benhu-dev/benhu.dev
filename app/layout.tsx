@@ -3,7 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 
-import { seo } from '@/lib/data';
+import { personal, seo } from '@/data/content';
 
 import './globals.css';
 
@@ -27,37 +27,33 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: seo.title,
-    template: '%s | Ben Hu',
+    template: `%s | ${personal.name}`,
   },
   description: seo.description,
-  applicationName: 'Ben Hu',
-  authors: [{ name: 'Ben Hu' }],
-  creator: 'Ben Hu',
-  publisher: 'Ben Hu',
+  applicationName: personal.name,
+  authors: [{ name: personal.name }],
+  creator: personal.name,
+  publisher: personal.name,
   alternates: {
     canonical: '/',
   },
   openGraph: {
     type: 'website',
-    siteName: 'Ben Hu',
+    siteName: personal.name,
     title: seo.title,
     description: seo.description,
     url: siteUrl,
-    images: [
-      {
-        url: seo.ogImage,
-        width: 1200,
-        height: 630,
-        alt: 'Ben Hu — Full-Stack Engineer',
-      },
-    ],
+    // Image meta tags are auto-injected from `app/opengraph-image.tsx`
+    // via the Metadata Files API. No manual `images` array needed.
     locale: 'en_US',
   },
   twitter: {
+    // Twitter falls back to the OG image when `twitter-image` isn't
+    // defined separately. We don't need a dedicated twitter-image —
+    // same 1200×630 spec, same image suffices.
     card: 'summary_large_image',
     title: seo.title,
     description: seo.description,
-    images: [seo.ogImage],
   },
   robots: {
     index: true,
@@ -69,13 +65,10 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-    ],
-    apple: '/favicon.svg',
-  },
+  // No manual `icons` block — Next.js auto-discovers `app/favicon.ico`,
+  // `app/icon.svg`, `app/icon.png`, and `app/apple-icon.png` via file
+  // convention and emits the appropriate <link rel> tags.
+  manifest: '/site.webmanifest',
 };
 
 export const viewport: Viewport = {

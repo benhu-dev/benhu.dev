@@ -33,7 +33,11 @@ const VARIANTS: Record<Variant, string> = {
 
 const SIZES: Record<Size, string> = {
   sm: 'px-4 py-1.5 text-sm',
-  md: 'px-5 py-2.5 text-sm',
+  // `md` carries a built-in mobile step-down so hero CTAs scale at narrow
+  // viewports. Desktop values restored at `md` (Tailwind = 768px), which is
+  // also the nav's hamburger breakpoint — keeping CTA scale tied to the
+  // same layout transition.
+  md: 'px-4 py-2 text-xs md:px-5 md:py-2.5 md:text-sm',
   lg: 'px-6 py-3 text-base',
 };
 
@@ -52,6 +56,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         SIZES[size],
         className,
       )}
+      // Same browser-extension-injected `fdprocessedid` issue as Input —
+      // form-fill assistants stamp this attribute on submit buttons too.
+      suppressHydrationWarning
       {...rest}
     />
   );

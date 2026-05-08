@@ -71,21 +71,23 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Customization guide
 
-### Update text content
+### Editing content
 
-Everything user-facing lives in **`lib/data.ts`** — personal details, about copy, skills, projects, experience, contact info, SEO. Replace the `[REPLACE: ...]` placeholders.
+All user-facing content lives in **`data/content.ts`** (and the matching types in **`data/types.ts`**) — personal details, about copy, skills, projects, experience, contact info, SEO. Replace the `[REPLACE: ...]` placeholders.
+
+The `data/` folder is the single source of truth for **brand identity**: editing `personal.name` in `data/content.ts` updates the visible name everywhere on the site (hero, footer, nav wordmark, page metadata, OG alt text, email subject/footer). Same for `personal.domain`, `personal.nameSlug`, and the `contact.*` handles. No grepping required for a rebrand.
 
 ### Update images
 
 Drop replacements into **`public/images/`**:
 
-- `public/images/projects/project-1.svg` … `project-5.svg` — project mockups (PNG/JPG also fine, just update the path in `lib/data.ts`)
+- `public/images/projects/project-1.svg` … `project-5.svg` — project mockups (PNG/JPG also fine, just update the path in `data/content.ts`)
 - `public/images/og-image.svg` — 1200×630 social card (PNG strongly recommended for production)
 - `public/favicon.svg` — favicon (also `app/favicon.ico` for legacy clients)
 
 ### Add a new project
 
-Append to the `projects` array in `lib/data.ts`:
+Append to the `projects` array in `data/content.ts`:
 
 ```ts
 {
@@ -148,7 +150,7 @@ Vercel will issue a TLS certificate automatically.
 3. **API Keys → Create API Key** with `sending_access` scope.
 4. Save it as `RESEND_API_KEY` in `.env.local` (locally) and in Vercel's environment variables (production).
 
-The "from" address is `Ben Hu Portfolio <noreply@benhu.dev>` — replace in `lib/email.ts` if you're not using `benhu.dev`.
+The "from" address is composed from `personal.name` and `personal.domain` in `data/content.ts` (e.g. `Ben Hu Portfolio <noreply@benhu.dev>`). To change it, edit those fields in `data/content.ts` rather than `lib/email.ts`.
 
 ---
 
@@ -173,14 +175,17 @@ benhu.dev/
 ├── hooks/
 │   ├── use-active-section.ts       # IntersectionObserver-driven nav highlight
 │   └── use-scroll-progress.ts      # 0..1 scroll progress for the status bar line counter
+├── data/
+│   ├── content.ts                  # ⭐ All site content + brand identity (edit here)
+│   └── types.ts                    # Shared content types
 ├── lib/
-│   ├── data.ts                     # ⭐ All site content lives here
-│   ├── email.ts                    # Resend wrapper
-│   ├── types.ts                    # Shared types
+│   ├── email.ts                    # Resend wrapper (composed from data/content)
+│   ├── rate-limit.ts               # In-memory IP rate limiter for /api/contact
 │   ├── utils.ts                    # cn() helper
 │   └── validations.ts              # Zod schemas (also used on the client)
 ├── public/
 │   ├── favicon.svg
+│   ├── site.webmanifest            # PWA manifest
 │   └── images/                     # Project mockups + OG image
 ├── tests/                          # Vitest setup + sample test
 ├── .github/workflows/ci.yml

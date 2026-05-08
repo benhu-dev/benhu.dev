@@ -5,10 +5,10 @@ import type { CSSProperties } from 'react';
 
 const SPACING = 28;
 const RADIUS = 110;
-const LIFT_MAX = 90;
+const LIFT_MAX = 250;
 const FOCAL = 700;
 const FAR_FADE = 150;
-const SIGMA = 50;
+const SIGMA = 70;
 const CURSOR_LERP = 0.12;
 const ACT_LERP = 0.06;
 const ACT_IDLE = 0.22;
@@ -159,7 +159,7 @@ export function GridSphere() {
 
       // Background glow under the bulge
       const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, RADIUS * 1.4);
-      glow.addColorStop(0, `rgba(122,162,247,${0.04 * act})`);
+      glow.addColorStop(0, `rgba(122,162,247,${0.05 * act})`);
       glow.addColorStop(0.5, `rgba(122,162,247,${0.015 * act})`);
       glow.addColorStop(1, 'rgba(122,162,247,0)');
       ctx.fillStyle = glow;

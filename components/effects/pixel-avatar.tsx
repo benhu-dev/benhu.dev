@@ -1,57 +1,29 @@
+import { personal } from '@/data/content';
 import { cn } from '@/lib/utils';
 
 interface PixelAvatarProps {
   className?: string;
 }
 
-const PIXEL_GRID = [
-  '....NNNNNNNN....',
-  '...NHHHHHHHHN...',
-  '..NHHHHHHHHHHN..',
-  '..NHFFFFFFFFHN..',
-  '..NHFEFFFFEFHN..',
-  '..NHFFFFFFFFHN..',
-  '..NHFFMMMMFFHN..',
-  '..NHFFFFFFFFHN..',
-  '...NHHHHHHHHN...',
-  '....NSSSSSSN....',
-  '...SSSSSSSSSS...',
-  '..SSCCCCCCCCSS..',
-  '..SCCCCCCCCCSS..',
-  '..SCCCCCCCCCCS..',
-  '..SCCCCCCCCCCS..',
-  '..SSSSSSSSSSSS..',
-];
-
-const PALETTE: Record<string, string> = {
-  '.': 'transparent',
-  N: '#1a1b26',
-  H: '#3b2f2a',
-  F: '#d3a37a',
-  E: '#1a1b26',
-  M: '#7a3b3b',
-  S: '#9ece6a',
-  C: '#7aa2f7',
-};
-
 export function PixelAvatar({ className }: PixelAvatarProps) {
+  // Rendered as a <div> with background-image rather than <Image> because
+  // CSS background sizing/positioning are independent — `background-size:
+  // contain` scales without touching alignment, and `background-position:
+  // bottom center` then anchors the image to the floor. With <Image>,
+  // `object-contain` and `object-bottom` interact in a way that leaves the
+  // character floating mid-frame when the source has transparent padding.
   return (
     <div
-      className={cn('pixelated grid h-[92%] w-[92%]', className)}
-      style={{ gridTemplateColumns: 'repeat(16, 1fr)' }}
-      aria-label="Pixel-art avatar of Ben Hu"
       role="img"
-    >
-      {PIXEL_GRID.flatMap((row, rIdx) =>
-        row
-          .split('')
-          .map((cell, cIdx) => (
-            <div
-              key={`${rIdx}-${cIdx}`}
-              style={{ backgroundColor: PALETTE[cell] ?? 'transparent' }}
-            />
-          )),
-      )}
-    </div>
+      aria-label={`Pixel-art avatar of ${personal.name}`}
+      className={cn('h-[92%] w-[92%]', className)}
+      style={{
+        backgroundImage: 'url(/images/avatar.png)',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'bottom center',
+        backgroundSize: 'contain',
+        imageRendering: 'pixelated',
+      }}
+    />
   );
 }

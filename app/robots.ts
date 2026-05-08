@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-import { seo } from '@/lib/data';
+import { seo } from '@/data/content';
 
 export default function robots(): MetadataRoute.Robots {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? seo.url;

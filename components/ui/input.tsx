@@ -17,6 +17,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         'bg-bg-primary border-border-default text-text-primary placeholder:text-text-muted focus:border-syntax-function focus:ring-syntax-function/30 w-full rounded-sm border px-3 py-2 font-mono text-sm transition-colors focus:ring-2 focus:outline-none',
         className,
       )}
+      // Some browser extensions (1Password, LastPass, Chrome autofill, etc.)
+      // inject `fdprocessedid` onto form fields between SSR and hydration,
+      // tripping React's hydration mismatch check. Targeted suppression on
+      // the affected element is the React-team-recommended fix.
+      suppressHydrationWarning
       {...rest}
     />
   );

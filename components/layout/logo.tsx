@@ -1,3 +1,5 @@
+import { personal } from '@/data/content';
+
 interface LogoProps {
   size?: number;
   className?: string;
@@ -34,7 +36,7 @@ export function Logo({ size = 22, className }: LogoProps) {
       xmlns="http://www.w3.org/2000/svg"
       shapeRendering="crispEdges"
       className={className}
-      aria-label="Ben Hu logo"
+      aria-label={`${personal.name} logo`}
     >
       {RECTS.map((r, i) => (
         <rect

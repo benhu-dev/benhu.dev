@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { PixelAvatar } from '@/components/effects/pixel-avatar';
-import { about } from '@/lib/data';
+import { about } from '@/data/content';
 
 import { Skills } from './skills';
 
@@ -17,14 +17,14 @@ export function About() {
       <div className="mx-auto max-w-[1400px]">
         <p className="text-text-muted mb-8 font-mono text-sm">{'// about'}</p>
 
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[280px_1fr] lg:gap-16">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-[280px_1fr] md:gap-16">
           <motion.div
             initial={{ opacity: 0, x: reduced ? 0 : -24 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.6 }}
           >
-            <div className="border-border-default bg-bg-secondary relative overflow-hidden rounded-xl border p-4">
+            <div className="border-border-default bg-bg-secondary relative mx-0 w-full max-w-[280px] overflow-hidden rounded-xl border p-4 md:mx-auto md:max-w-[360px]">
               <div className="mb-2.5 flex items-center gap-1.5">
                 <span
                   className="bg-syntax-error inline-block rounded-full"
@@ -42,7 +42,7 @@ export function About() {
               </div>
 
               <div
-                className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg"
+                className="flex aspect-square w-full items-end justify-center overflow-hidden rounded-lg"
                 style={{ background: CHECKER_BG }}
               >
                 <PixelAvatar />
@@ -57,9 +57,7 @@ export function About() {
                   online — <span className="text-syntax-string">open to work</span>
                 </span>
               </div>
-              <p className="text-text-muted mt-2 font-mono text-[11px]">
-                📍 Taipei · UTC+8 · remote-friendly
-              </p>
+              <p className="text-text-muted mt-2 font-mono text-[11px]">📍 LA · remote-friendly</p>
             </div>
           </motion.div>
 

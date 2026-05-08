@@ -1,14 +1,21 @@
 import { z } from 'zod';
 
 export const contactFormSchema = z.object({
-  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(80, 'Name is too long'),
-  email: z.string().trim().email('Please enter a valid email').max(160, 'Email is too long'),
+  name: z
+    .string()
+    .trim()
+    .min(2, "at least 2 characters please. even 'AI' works")
+    .max(100, 'name is too long'),
+  email: z
+    .string()
+    .trim()
+    .email('regex says no. double-check the email?')
+    .max(200, 'email is too long'),
   message: z
     .string()
     .trim()
-    .min(10, 'Message must be at least 10 characters')
-    .max(4000, 'Message is too long'),
-  honeypot: z.string().optional().default(''),
+    .min(10, '`hi` is friendly but I need 10+ characters')
+    .max(5000, 'message is too long. brevity is a virtue'),
 });
 
 export type ContactFormInput = z.input<typeof contactFormSchema>;

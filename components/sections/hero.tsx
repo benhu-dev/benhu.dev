@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { GridSphere } from '@/components/effects/grid-sphere';
 import { Typewriter } from '@/components/effects/typewriter';
 import { Button } from '@/components/ui/button';
-import { personal } from '@/lib/data';
+import { personal } from '@/data/content';
 
 export function Hero() {
   const reduced = useReducedMotion();
@@ -21,9 +21,12 @@ export function Hero() {
   };
 
   return (
-    <section id="hero" className="relative min-h-[100dvh] w-full overflow-hidden lg:h-[100dvh]">
+    <section
+      id="hero"
+      className="relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden lg:h-[100dvh]"
+    >
       <div
-        className="pointer-events-none relative z-10 flex h-full flex-col px-6 pb-20 lg:px-16 lg:pb-24"
+        className="pointer-events-none relative z-10 flex flex-col px-6 pb-20 lg:px-16 lg:pb-24"
         style={{ paddingTop: 'var(--nav-height)' }}
       >
         <div className="mx-auto mt-12 w-full max-w-[1400px] lg:mt-16">
@@ -45,7 +48,7 @@ export function Hero() {
                 <span className="text-text-muted">const </span>
                 <span className="text-text-primary">name</span>
                 <span className="text-text-muted"> = </span>
-                <span className="text-syntax-string">&ldquo;Ben Hu&rdquo;</span>
+                <span className="text-syntax-string">&ldquo;{personal.name}&rdquo;</span>
               </motion.h1>
 
               <motion.p
@@ -53,7 +56,7 @@ export function Hero() {
                 animate="show"
                 variants={fadeUp}
                 transition={{ delay: 0.15 }}
-                className="hero-text-shadow mb-7 font-mono lg:whitespace-nowrap"
+                className="hero-text-shadow mb-10 font-mono md:mb-7 lg:whitespace-nowrap"
                 style={{ fontSize: 'clamp(20px, 2.5vw, 30px)' }}
               >
                 <span className="text-syntax-function">{personal.title}</span>{' '}
@@ -66,7 +69,7 @@ export function Hero() {
                 animate="show"
                 variants={fadeUp}
                 transition={{ delay: 0.45 }}
-                className="pointer-events-auto mb-4 flex flex-wrap items-center gap-[14px]"
+                className="pointer-events-auto mb-6 flex flex-wrap items-center gap-[14px] md:mb-4"
               >
                 <Button variant="primary" size="md" onClick={() => scrollTo('projects')}>
                   &gt; view_projects()
@@ -81,15 +84,30 @@ export function Hero() {
                 animate="show"
                 variants={fadeUp}
                 transition={{ delay: 0.6 }}
-                className="border-border-default bg-bg-secondary inline-flex items-center gap-3 rounded-full border py-[10px] pr-5 pl-4 font-mono text-sm"
+                className="border-border-default bg-bg-secondary inline-flex items-center gap-2 rounded-full border py-1.5 pr-3 pl-2.5 font-mono text-xs md:gap-3 md:py-[10px] md:pr-5 md:pl-4 md:text-sm"
               >
                 <span
                   className="bg-syntax-string pulse-dot inline-block rounded-full"
                   style={{ width: 10, height: 10 }}
                 />
-                <span className="text-text-primary font-semibold">Open to work</span>
-                <span className="text-text-muted">—</span>
-                <span className="text-text-primary">remote-friendly</span>
+                {/* Status pill is split visually around the em-dash for the
+                    two-tone styling (white / muted / white). Source of truth
+                    is `personal.status` — we split on " — " to keep the
+                    multi-color rendering without hardcoding the words. */}
+                {(() => {
+                  const [primary, secondary = ''] = personal.status.split(' — ');
+                  return (
+                    <>
+                      <span className="text-text-primary font-semibold">{primary}</span>
+                      {secondary && (
+                        <>
+                          <span className="text-text-muted">—</span>
+                          <span className="text-text-primary">{secondary}</span>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
               </motion.div>
             </div>
           </div>

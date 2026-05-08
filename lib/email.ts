@@ -1,9 +1,15 @@
 import { Resend } from 'resend';
 
-import { contact } from './data';
+import { contact, personal } from '@/data/content';
+
 import type { ContactFormInput } from './validations';
 
-const FROM_ADDRESS = 'Ben Hu Portfolio <noreply@benhu.dev>';
+// Composed from `personal` so a future rename only happens in one place.
+// Currently unused by the live API route (see app/api/contact/route.ts,
+// which uses Resend's onboarding sender until the benhu.dev domain is
+// verified). When that flips, the route can switch to sendContactEmail
+// and pick this address up automatically.
+const FROM_ADDRESS = `${personal.name} Portfolio <noreply@${personal.domain}>`;
 
 let resendClient: Resend | null = null;
 
@@ -39,7 +45,7 @@ function renderEmailHtml(payload: ContactFormInput): string {
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
       <p style="white-space: pre-wrap; line-height: 1.6;">${safeMessage}</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
-      <p style="color: #888; font-size: 12px;">Sent via benhu.dev contact form.</p>
+      <p style="color: #888; font-size: 12px;">Sent via ${personal.domain} contact form.</p>
     </div>
   `;
 }
@@ -50,7 +56,7 @@ export async function sendContactEmail(payload: ContactFormInput): Promise<void>
     from: FROM_ADDRESS,
     to: [contact.email],
     replyTo: payload.email,
-    subject: `New message from ${payload.name} via benhu.dev`,
+    subject: `New message from ${payload.name} via ${personal.domain}`,
     html: renderEmailHtml(payload),
   });
   if (error) {

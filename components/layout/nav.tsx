@@ -4,6 +4,7 @@ import { Menu, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { personal } from '@/data/content';
 import { useActiveSection } from '@/hooks/use-active-section';
 import { cn } from '@/lib/utils';
 
@@ -83,7 +84,7 @@ export function Nav() {
             aria-label="Scroll to top"
           >
             <Logo size={22} />
-            <span className="text-text-primary font-mono text-sm">ben-hu.tsx</span>
+            <span className="text-text-primary font-mono text-sm">{personal.nameSlug}.tsx</span>
           </button>
 
           <ul className="hidden items-center gap-6 font-mono text-sm md:flex">

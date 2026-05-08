@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { TagPill } from '@/components/ui/tag-pill';
-import { skills } from '@/lib/data';
+import { skills } from '@/data/content';
 
 interface SkillCardProps {
   title: string;
@@ -41,9 +41,9 @@ export function Skills() {
         {'// stack'}
       </p>
       <div className="grid grid-cols-1 gap-4 [@media(min-width:1200px)]:grid-cols-3">
-        <SkillCard title="// frontend" items={skills.frontend} color="function" index={0} />
-        <SkillCard title="// backend" items={skills.backend} color="keyword" index={1} />
-        <SkillCard title="// infra & tools" items={skills.infraAndTools} color="number" index={2} />
+        <SkillCard title="// Frontend" items={skills.frontend} color="function" index={0} />
+        <SkillCard title="// Backend" items={skills.backend} color="keyword" index={1} />
+        <SkillCard title="// AI & LLM Tooling" items={skills.ai} color="number" index={2} />
       </div>
     </div>
   );

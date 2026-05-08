@@ -1,135 +1,109 @@
-Two small UI tweaks to the Projects section (components/sections/projects.tsx and components/sections/projects/project-card.tsx).
+# Build the OG image programmatically
 
-### 1. Progress bar feels laggy — remove the transition
+The current OG image is `public/images/og-image.svg` — a hand-rolled
+placeholder that:
+- Is SVG (Twitter, LinkedIn, iMessage, Slack often don't render SVG OG images)
+- Has stale text saying "Taipei" but the user's `personal.location` 
+  is now LA-based
 
-The progress bar currently has `transition: 'width 0.1s ease-out'`. This was added to smooth out scroll jitter, but it makes the bar feel like it's "catching up" to the user's scroll position with a noticeable delay. Since scrollY-driven width updates are already running at 60fps via the scroll listener, the transition is actually causing the lag, not preventing it.
+Replace it with a Next.js `opengraph-image.tsx` file convention that
+renders to PNG at build time using `next/og`.
 
-Fix: remove the transition entirely from the progress bar fill. The bar will now update perfectly in sync with scroll, frame by frame:
+## Task
 
-```tsx
-<div style={{
-  width: `${scrollProgress * 100}%`,
-  height: '100%',
-  background: 'linear-gradient(90deg, var(--syntax-function), var(--syntax-string))',
-  borderRadius: 3,
-  // REMOVE: transition: 'width 0.1s ease-out',
-}} />
-```
+### Part 1: Create `app/opengraph-image.tsx`
 
-The result: progress bar tracks scroll position 1:1 with zero perceptual delay.
+Use the Next.js Metadata Files API. The file should:
 
-### 2. Dim non-active cards based on distance from viewport center
+- Export `size = { width: 1200, height: 630 }`
+- Export `contentType = 'image/png'`
+- Export `alt` describing the image (e.g., 
+  `${personal.name} | ${personal.title}`)
+- Default-export an async function returning `new ImageResponse(...)`
+- Import data from `@/data/content` (use `personal` and `seo`) — do
+  NOT hardcode strings
 
-Currently all cards render at full opacity. The user wants the centered (active) card to be visually emphasized while side cards are dimmed — drawing attention to "the card you're looking at right now."
+### Design spec
 
-The trick: instead of binary active/inactive (which causes ugly snap transitions when the active index changes), compute each card's opacity based on its distance from viewport center. This produces a smooth, continuous dimming effect that responds organically to scroll position.
+The image is a marketing card for the portfolio. It must feel
+consistent with the site's IDE / Tokyo Night aesthetic:
 
-### Implementation
+- Background: `#1a1b26` (Tokyo Night base) with a subtle dot grid
+  or vertical gradient. Don't over-decorate.
+- Typography: monospace family. Use `JetBrains Mono` if the runtime
+  allows custom fonts via fetch — Vercel's edge runtime supports
+  loading fonts from Google Fonts at build time. If that's
+  fragile, fall back to a system monospace stack — readability
+  matters more than the exact font.
+- Layout (rough — refine for visual balance):
+  - Top-left: small subtitle in a muted color, e.g., 
+    `~/portfolio` or `// benhu.dev`
+  - Center-left, large: `personal.name` (e.g., "Ben Hu") in 
+    Tokyo Night green `#9ece6a` or blue `#7aa2f7` — pick what 
+    looks better at scale
+  - Below name, smaller: `personal.title` ("Full-Stack Engineer")
+    in muted foreground `#c0caf5`
+  - Bottom-left: `personal.location` and a status pill matching
+    `personal.status` (or omit pill if too busy)
+  - Bottom-right: `seo.url` host in a muted color
+- Colors must come from the actual Tokyo Night palette already used
+  in the site CSS — check `app/globals.css` for the source of truth.
 
-In `projects.tsx`, the existing scroll handler already has access to all cards' on-screen positions. Extend it to also compute each card's "centeredness" and apply opacity directly to each card via inline style or a CSS variable.
+Aim for the same visual language as the live site, not a generic 
+"developer portrait" template.
 
-Cleanest approach: write each card's opacity as an inline style during the scroll handler.
+### Part 2: Update metadata to use the convention
 
-In the scroll listener (after the existing translateX update):
-
-```tsx
-const handleScroll = () => {
-  // ... existing code that computes translateX and progress ...
-
-  // Extend the existing card-iteration loop to also set opacity based on distance from viewport center
-  const cards = track.querySelectorAll('[data-card]');
-  const viewportCenter = viewportWidth / 2;
-  let bestIdx = 0;
-  let bestDist = Infinity;
-
-  cards.forEach((card, i) => {
-    const cardEl = card as HTMLElement;
-    const cardCenter = cardEl.offsetLeft + cardEl.offsetWidth / 2 + translateX;
-    const dist = Math.abs(cardCenter - viewportCenter);
-
-    // Active index detection (existing logic)
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIdx = i;
-    }
-
-    // NEW: opacity based on distance from center
-    // Normalize: 0 = at center (full opacity), 1 = far away (dimmed)
-    // Use viewport width as the "fully dimmed" distance threshold
-    const normalized = Math.min(1, dist / (viewportWidth * 0.5));
-    // Map normalized distance to opacity: at center = 1, far = 0.3
-    const opacity = 1 - normalized * 0.7;
-    cardEl.style.opacity = String(opacity);
-  });
-
-  setActiveIndex(bestIdx);
-};
-```
-
-Notes:
-- `viewportWidth * 0.5` is the threshold — when card center is half a viewport away from center, it reaches max dim (0.3 opacity)
-- Active card always has opacity ≈ 1.0 because dist ≈ 0
-- Adjacent cards (peeking on each side) will be at maybe ~0.5 opacity — visibly dimmer but still readable
-- Far-off cards (not visible anyway since clipped by overflow) will be at 0.3 opacity floor
-
-The opacity transition is automatic and smooth because it's recomputed every scroll frame — no CSS transition needed.
-
-### Optional: also add a subtle blur to non-active cards
-
-If after testing the opacity-only change feels not "focused" enough, add a subtle blur as well:
-
-```tsx
-const blur = normalized * 2; // 0px at center, 2px at edges
-cardEl.style.filter = `blur(${blur}px)`;
-```
-
-This combined with opacity creates a depth-of-field effect — the active card "pops" while others fade into the background. Apple uses this exact pattern in their product pages.
-
-Try opacity-only first. If it feels right, stop. If you want more emphasis, add the blur.
-
-### 3. Handle the mobile fallback
-
-In the mobile/reduced-motion fallback render path (the simpler horizontal scroll version), apply the same opacity dimming using a separate scroll handler on the scroll container itself:
-
-```tsx
-// In the mobile render branch's useEffect:
-const handleMobileScroll = () => {
-  const scroller = mobileScrollerRef.current;
-  if (!scroller) return;
-  const cards = scroller.querySelectorAll('[data-card]');
-  const containerCenter = scroller.scrollLeft + scroller.clientWidth / 2;
+In `app/layout.tsx`:
+- Remove or replace the `openGraph.images` and `twitter.images` 
+  entries that point at `/images/og-image.svg`. With the file 
+  convention in place, Next.js auto-injects the correct OG image 
+  meta tags. You can either:
   
-  cards.forEach((card) => {
-    const cardEl = card as HTMLElement;
-    const cardCenter = cardEl.offsetLeft + cardEl.offsetWidth / 2;
-    const dist = Math.abs(cardCenter - containerCenter);
-    const normalized = Math.min(1, dist / (scroller.clientWidth * 0.5));
-    const opacity = 1 - normalized * 0.7;
-    cardEl.style.opacity = String(opacity);
-  });
-};
-```
+  Option A: Remove the manual `images` arrays entirely and let the
+  convention handle everything (cleanest).
+  
+  Option B: Keep the arrays but point them at `/opengraph-image` 
+  (the route Next.js generates).
+  
+  Choose A.
 
-Attach this handler to the mobile scroller's `onScroll` and run once on mount.
+In `data/content.ts`:
+- Update `seo.ogImage` — either remove it from the type and exports
+  (since it's no longer needed) or set it to a sensible default 
+  that's still used somewhere. Check for any other consumers of 
+  `seo.ogImage` first.
 
-### 4. Verify
+### Part 3: Optional — also create twitter-image.tsx
 
-1. Scroll through Projects on desktop:
-   - Progress bar updates smoothly with no perceptible lag — moves exactly when you scroll
-   - The center card has full opacity
-   - Cards peeking from left/right sides are visibly dimmer (~50% opacity)
-   - As you scroll horizontally, the dimming smoothly reassigns — the new center card brightens, the old one fades, all gradually
-2. On mobile (resize browser to <1024px):
-   - Same dimming behavior on horizontal swipe
-3. No layout shift, no flicker
-4. Card hover effects still work on the active (centered) card
-5. The dimming feels organic and continuous, not snappy
+Twitter card spec is identical to OG (1200×630, PNG). Either:
 
-### Don't touch
+Option A: Re-export the same component from 
+  `app/twitter-image.tsx` — Next.js will use it for `twitter:image`.
 
-- Sticky horizontal scroll mechanism
-- Outer section height calculation
-- Card design, content, hover effects
-- ProjectScreenshot
-- Counter logic
-- Nav, Hero, About, other sections
+Option B: Skip it — Next.js will fall back to the OG image for 
+  Twitter cards automatically. This is fine.
+
+Choose B unless creating the re-export is trivial.
+
+### Part 4: Clean up old placeholder
+
+- Delete `public/images/og-image.svg`
+- If `public/images/` is now empty, delete the directory
+
+## QA
+
+- `npm run lint` — 0 errors / 0 warnings
+- `npm run type-check` — clean
+- `npm run build` — clean. Build output should show
+  `/opengraph-image` as a generated route emitting a PNG.
+- Open `http://localhost:3000/opengraph-image` in a browser — 
+  should display the rendered 1200×630 PNG. Confirm it looks 
+  professional, on-brand, and the text matches current data
+  (no stale Taipei reference).
+
+## Out of scope
+
+- No actual posting/sharing test — that requires the site to be 
+  deployed. The user will validate on opengraph.dev or similar 
+  after deploy.
