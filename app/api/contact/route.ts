@@ -15,10 +15,8 @@ if (!RESEND_API_KEY) {
   console.error('RESEND_API_KEY is not set in environment');
 }
 
-// TODO: change to waynehu.dev@gmail.com after verifying benhu.dev domain in Resend
-const TO_EMAIL = 'diff30140556@gmail.com';
-// TODO: change to noreply@benhu.dev after domain verify
-const FROM_EMAIL = 'onboarding@resend.dev';
+const TO_EMAIL = 'waynehu.dev@gmail.com';
+const FROM_EMAIL = 'noreply@benhu.dev';
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -81,16 +79,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const resend = new Resend(RESEND_API_KEY);
     const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: `Ben Hu Portfolio <${FROM_EMAIL}>`,
       to: TO_EMAIL,
       replyTo: validatedData.email,
       subject: `New contact from ${validatedData.name}`,
       // Plaintext only — eliminates HTML/XSS surface entirely. The user's
       // input is never rendered in a browser.
       text: [
-        `From: ${validatedData.name} <${validatedData.email}>`,
+        `New contact from benhu.dev`,
+        ``,
+        ``,
+        `Name:    ${validatedData.name}`,
+        `Email:   ${validatedData.email}`,
+        `Sent:    ${new Date().toLocaleString('en-US', {
+          timeZone: 'America/Los_Angeles',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })} PT`,
+        ``,
+        ``,
+        `Message`,
+        `———————`,
         ``,
         validatedData.message,
+        ``,
+        ``,
+        `Reply to this email to respond directly to ${validatedData.name}.`,
       ].join('\n'),
     });
 

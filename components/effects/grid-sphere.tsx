@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 
+import { useMediaQuery } from '@/lib/hooks/use-media-query';
+
 const SPACING = 28;
 const RADIUS = 110;
 const LIFT_MAX = 250;
@@ -14,6 +16,13 @@ const ACT_LERP = 0.06;
 const ACT_IDLE = 0.22;
 const ACT_INITIAL = 0.25;
 const IDLE_TIMEOUT_MS = 700;
+
+// Coarse-pointer (touch) auto-sweep. This isn't a true 3D sphere — it's a
+// 2D perspective bulge — so "rotate around Y-axis" maps to a slow horizontal
+// sweep of the bulge center. ~0.15 rad/sec ≈ a 42s full cycle, enough to
+// read as "alive" without being distracting while the user reads the hero.
+const SWEEP_SPEED = 0.15;
+const SWEEP_AMP_FRAC = 0.32;
 
 const STATIC_GRID_STYLE: CSSProperties = {
   backgroundImage: [
@@ -41,14 +50,30 @@ export function GridSphere() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // hover:none + pointer:coarse targets phones/tablets while leaving
+  // touchscreen laptops (which still report a fine pointer for the trackpad
+  // / mouse) on the desktop code path. These are reactive — switching widths
+  // in DevTools or rotating a tablet flips them and the draw loop reroutes
+  // on the next frame, no canvas reinit.
+  const coarsePointer = useMediaQuery('(hover: none) and (pointer: coarse)');
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  // Mirror reactive props into refs so the long-lived draw loop (set up in a
+  // deps-`[]` effect to avoid tearing down the canvas on mode change) can
+  // read the current values each frame without being recreated.
+  const coarseRef = useRef(coarsePointer);
+  const reducedRef = useRef(reducedMotion);
+  useEffect(() => {
+    coarseRef.current = coarsePointer;
+  }, [coarsePointer]);
+  useEffect(() => {
+    reducedRef.current = reducedMotion;
+  }, [reducedMotion]);
+
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
-
-    const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const mqCoarse = window.matchMedia('(pointer: coarse)');
-    if (mqReduce.matches || mqCoarse.matches) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -100,6 +125,11 @@ export function GridSphere() {
     let visible = true;
 
     const onMove = (e: MouseEvent) => {
+      // Ignore mouse data while the sphere is in coarse-pointer mode — on a
+      // real touchscreen, taps emit a spurious mousemove that would yank the
+      // bulge during page scrolling. The draw loop also branches on this, so
+      // even if we missed the gate here the auto-sweep path would override.
+      if (coarseRef.current) return;
       const rect = wrap.getBoundingClientRect();
       mx = e.clientX - rect.left;
       my = e.clientY - rect.top;
@@ -109,6 +139,9 @@ export function GridSphere() {
       mx = -9999;
       my = -9999;
     };
+    // Listeners attached unconditionally — registering/unregistering on every
+    // viewport-driven mode flip would race with rapid resizes. The onMove
+    // gate above filters out coarse-mode events.
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseleave', onLeave);
 
@@ -143,15 +176,39 @@ export function GridSphere() {
     const draw = () => {
       raf = requestAnimationFrame(draw);
       if (!visible) return;
+      // Reduced motion → freeze on the last drawn frame. We keep the rAF loop
+      // alive so flipping reduced-motion off resumes seamlessly without
+      // having to wire up a separate mount/unmount path.
+      if (reducedRef.current) return;
       const t = (performance.now() - t0) / 1000;
 
-      const tx = mx > -9000 ? mx : W * 0.35;
-      const ty = my > -9000 ? my : H * 0.55;
+      const isCoarse = coarseRef.current;
+      let tx: number;
+      let ty: number;
+      if (isCoarse) {
+        // Auto-sweep horizontally around the canvas center; vertical position
+        // pinned to the same rest line desktop uses. sin(0) = 0, so the bulge
+        // starts dead-center on first frame, then drifts outward smoothly.
+        tx = W * 0.5 + Math.sin(t * SWEEP_SPEED) * W * SWEEP_AMP_FRAC;
+        ty = H * 0.55;
+      } else if (mx > -9000) {
+        tx = mx;
+        ty = my;
+      } else {
+        // Fine pointer but no mouse seen yet — most often the result of a
+        // coarse → fine resize transition where the user hasn't moved their
+        // mouse over the hero yet. Hold the current bulge position so the
+        // sphere doesn't snap to a default spot.
+        tx = cx;
+        ty = cy;
+      }
       cx += (tx - cx) * CURSOR_LERP;
       cy += (ty - cy) * CURSOR_LERP;
 
       const since = performance.now() - lastSeen;
-      const cursorActive = mx > -9000 && since < IDLE_TIMEOUT_MS;
+      // Treat the bulge as always "active" on touch — there's no cursor to
+      // idle out, and at idle activation (0.22) the sweep is barely visible.
+      const cursorActive = isCoarse || (mx > -9000 && since < IDLE_TIMEOUT_MS);
       state.act += ((cursorActive ? 1 : ACT_IDLE) - state.act) * ACT_LERP;
       const act = state.act;
 

@@ -123,20 +123,15 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
           {project.title}
         </h3>
 
-        {/* tagline */}
+        {/* tagline — full text on mobile (cards may grow taller, intended);
+            2-line clamp at sm:+ where cards are wide enough to fit the gist
+            in two lines without losing context. */}
         <p
-          className="text-text-secondary flex-shrink-0 font-sans"
+          className="text-text-secondary flex-shrink-0 font-sans sm:line-clamp-2"
           style={{
             fontSize: 'clamp(13px, 1.05vw, 15px)',
             lineHeight: 1.5,
             maxWidth: 720,
-            // 2-line clamp prevents long taglines from spawning a 3rd/4th
-            // wrapped row on narrow viewports. Desktop usually fits in 2
-            // lines anyway, so this acts as a mobile safeguard.
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
           }}
         >
           {project.tagline}
