@@ -3,6 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 
+import { ScrollToTop } from '@/components/effects/scroll-to-top';
 import { personal, seo } from '@/data/content';
 
 import './globals.css';
@@ -87,6 +88,7 @@ export default function RootLayout({
     <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable} h-full antialiased`}>
       <body className="bg-bg-primary text-text-primary flex min-h-full flex-col font-sans">
         {children}
+        <ScrollToTop />
         <Analytics />
         <SpeedInsights />
       </body>

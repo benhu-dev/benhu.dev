@@ -57,6 +57,19 @@ export function Nav() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  // Body scroll lock while the mobile menu is open. Restoring `original`
+  // (rather than hardcoding `''`) is defensive against a future caller that
+  // already pinned overflow for some reason — we only ever revert to what
+  // was there when we took the lock.
+  useEffect(() => {
+    if (!open) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [open]);
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -128,31 +141,53 @@ export function Nav() {
       </header>
 
       {open && (
-        <div
-          className="bg-bg-primary fixed inset-0 z-30 flex flex-col items-center justify-center gap-8 md:hidden"
-          role="dialog"
-          aria-modal="true"
-        >
-          {NAV_ITEMS.map((item) => {
-            const isActive = active === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => scrollTo(item.id)}
-                className={cn(
-                  'cursor-pointer font-mono text-2xl transition-colors',
-                  isActive ? 'text-syntax-string' : 'text-text-primary',
-                )}
+        <>
+          {/* Backdrop — tap-to-close. z-30 keeps it under the header (z-40)
+              so the X button there stays clickable, and bg-bg-primary behind
+              the semi-transparent black gives the same dark backdrop feel
+              the previous opaque panel had, without fully hiding the page. */}
+          <div
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Menu cluster — same z-layer as backdrop but later in DOM so it
+              stacks above. Outer wrapper is pointer-events-none so taps in
+              the empty area around the cluster fall through to the backdrop;
+              the inner cluster re-enables pointer events for its items. */}
+          <div
+            className="pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center gap-8 md:hidden"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="pointer-events-auto flex flex-col items-center gap-8">
+              {NAV_ITEMS.map((item) => {
+                const isActive = active === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => scrollTo(item.id)}
+                    className={cn(
+                      'cursor-pointer font-mono text-2xl transition-colors',
+                      isActive ? 'text-syntax-string' : 'text-text-primary',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => scrollTo('contact')}
+                className="mt-4"
               >
-                {item.label}
-              </button>
-            );
-          })}
-          <Button variant="primary" size="lg" onClick={() => scrollTo('contact')} className="mt-4">
-            &gt; hire_me
-          </Button>
-        </div>
+                &gt; hire_me
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </>
   );

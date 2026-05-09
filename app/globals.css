@@ -168,6 +168,11 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* Belt-and-suspenders: the rule above already neutralises animations, but
+     `animation: none` is the clearer signal for the scroll-to-top arrow. */
+  .bob-arrow {
+    animation: none;
+  }
 }
 
 /* Projects-section "→ swipe" hint — bouncing arrow with opacity pulse */
@@ -181,4 +186,19 @@ body {
     transform: translateX(4px);
     opacity: 1;
   }
+}
+
+/* Scroll-to-top pixel arrow — subtle 2px hover bob, 1.8s cycle. */
+@keyframes bob-up {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.bob-arrow {
+  animation: bob-up 1.8s ease-in-out infinite;
 }
