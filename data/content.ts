@@ -172,7 +172,7 @@ export const projects: Project[] = [
 export const experience: ExperienceEntry[] = [
   {
     company: 'DramaBox',
-    role: 'IT Specialist',
+    role: 'Software Engineer & IT Specialist',
     period: '2025 - Present',
     isCurrent: true,
     stack: ['Infra', 'Scripting', 'OpenAI API', 'Next.js', 'TypeScript', 'Node.js'],
